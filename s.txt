@@ -1,0 +1,10 @@
+applus 2037/tcp # APplus Application Server
+iwlistener 2866/TCP # iwlistener
+netspeak-cs 21847/udp # NetSpeak Corp. Connection Services
+netsteward 2810/udp # Active Net Steward
+novar-global 23402/tcp # Novar Global
+osmosis-aeea 3034/UDP # Osmosis / Helix (R) AEEA Port
+quicksuite 2900/tcp # QUICKSUITE
+rrp 648/udp # Registry Registrar Protocol (RRP)
+s-openmail 5767/tcp # OpenMail Suer Agent Layer (Secure)
+telelpathattack 5011/udp # TelepathAttack
