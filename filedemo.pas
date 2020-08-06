@@ -34,9 +34,12 @@ program filedemo;
 {$i d:maprbase.inc}
 {$i d:maprvars.inc}
 {$i d:maprpage.inc}
+{$i d:blink.inc}
 
 const
     Limit = 16383;
+    SizeScreen = 1919;
+    SizeTextScreen = 1839;
     
     WRTVDP = $0047;
     RDVRM  = $004A;
@@ -67,8 +70,14 @@ var i, j, k, l, MaxBlock, FirstSegment: integer;
     BlockReadResult: byte;
     NewPosition: integer;
     TextFileName: TFileName;
-    ScreenBuffer: array[0..2047] of char;
+    ScreenBuffer: array[0..SizeScreen] of char;
+    OriginalRegister9Value: byte;
 
+    TempString: TString;
+    TempTinyString: string[5];
+    TotalPages: integer;
+    VDPSAV1: array[0..7]  of byte absolute $F3DF;
+    VDPSAV2: array[8..23] of byte absolute $FFE7;
     TXTNAM : integer absolute $F3B3;
 
 procedure ErrorCode (ExitOrNot: boolean);
@@ -91,11 +100,35 @@ begin
             $F0E6/$C3/$F38C);
 END;
 
+function GetVDP (register: byte): byte;
+begin
+    if register < 8 then
+        GetVDP:=VDPSAV1[register]
+    else
+        GetVDP:=VDPSAV2[register];
+end;
+
+procedure SetExtendedScreen;
+begin
+    OriginalRegister9Value := getVDP(9);
+    SetVDP(9, OriginalRegister9Value + 128);
+    CallBas(32, $0C00, 0, 0, FILVRM);    
+end;
+
+procedure SetOriginalScreen;
+begin
+    TXTNAM := 0;
+    CallBas (0, 0, 0, 0, INITXT);
+    setVDP(9, OriginalRegister9Value);
+end;
+
 BEGIN
     clrscr;
     AllChars := [0..255];
     NoPrint := [0..31, 127, 255];
-    Print := ALlChars - NoPrint;
+    Print := AllChars - NoPrint;
+    
+    SetExtendedScreen;
     
     writeln('Init Mapper? ', InitMapper(Mapper));
     PointerMapperVarTable := GetMapperVarTable(Mapper);
@@ -103,9 +136,10 @@ BEGIN
     writeln('Reading services file...');
     TextFileName := 'd:\services';
 
-    assign(B2FileHandle, TExtFileName);
+    assign(B2FileHandle, TextFileName);
     reset(B2FileHandle);
     MaxSize := (FileSize(B2FileHandle) * 128);
+    TotalPages := round(int(MaxSize / (SizeTextScreen + 1)));
     writeln('FileSize = ', MaxSize:0:0, ' bytes.');
     close(B2FileHandle);
 
@@ -133,13 +167,15 @@ BEGIN
     CloseResult := FileClose(BFileHandle);
 
     i := 0;
-    j := $3000;
+    j := $F000;
     PutMapperPage (Mapper, FirstSegment, 2);
-    for l := 1 to 2 do
+    for l := 1 to 14 do
     begin
         k := 0;
+        gotoxy(1,7); 
+        writeln('Colocando a tela ', l, ' na VRAM...');
         fillchar(ScreenBuffer, sizeof(ScreenBuffer), ' ' );
-        while (k < 1920) do
+        while (k < $0730) do
         begin
             if (Buffer[i] in Print) then
                 ScreenBuffer[k] := chr(Buffer[i])
@@ -153,46 +189,39 @@ BEGIN
             i := i + 1;
             k := k + 1;    
         end;
-        ScreenBuffer[73] := '-';
-        ScreenBuffer[74] := '=';
-        ScreenBuffer[75] := '>';
-        ScreenBuffer[76] := chr(64 + l);
-        ScreenBuffer[77] := '<';
-        ScreenBuffer[78] := '=';
-        ScreenBuffer[79] := '-';
-        WriteVRAM (0, j, addr(ScreenBuffer), 1920);
+        WriteVRAM (0, j, addr(ScreenBuffer), $0780);
         j := j - $1000;
     end;
-
-    j := $3000;
-    for l := 1 to 2 do
+{
+    ClearAllBlinks;
+    SetBlinkColors(DBlue, White);
+    SetBlinkRate(10, 10);
+}
+    j := $F000;
+    for l := 1 to 14 do
     begin
-        TXTNAM := j; 
+        TXTNAM := j;
         CallBas (0, 0, 0, 0, SETTXT);
+
+        fillchar(TempString, sizeof(TempString), ' ');
+        TempString := concat('Arquivo: ', TextFileName, '  Pagina ');
+        fillchar(TempTinyString, sizeof(TempTinyString), ' ');
+        str(l, TempTinyString);
+        TempString := concat(TempString, TempTinyString);
+        fillchar(TempTinyString, sizeof(TempTinyString), ' ');
+        str(TotalPages, TempTinyString);
+        TempString := concat(TempString, ' de ', TempTinyString);
+        gotoxy(1, 24);
+        fastwriteln(TempString);
+
+        blink(10, 10, 10);
+
         readln;
         j := j - $1000;
     end;
     TXTNAM := 0;
     CallBas (0, 0, 0, 0, SETTXT);
 
-{
-*     for i := 0 to 1600 do
-        write(ScreenBuffer[i]);
-}    
-{    
-    j := FirstSegment;
-    k := Limit;
-    while (j <> 99) do
-    begin
-        writeln('Let me see... Segment number ', j);
-        readln (j);
-        if j = 99 then exit;
-        PutMapperPage (Mapper, j, 2);
-        writeln('Printing the first ', k, ' characters of Buffer...');
-        for i := 1 to k do
-            write(chr(Buffer[i]));
-        readln;
-        clrscr;
-    end;
-}
+    SetOriginalScreen;
+
 END.

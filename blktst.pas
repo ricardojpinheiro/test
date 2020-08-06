@@ -36,7 +36,7 @@ var i : byte;
 
 BEGIN
     clrscr;
-    
+{    
     fillchar(Caminho, sizeof(Caminho), ' ' );
     fillchar(temporario, sizeof(temporario), ' ' );
     
@@ -61,7 +61,7 @@ BEGIN
     end;
        
     MSXBDOS (Registros);
-    
+} 
     ClearAllBlinks;
     for i := 1 to 20 do
         fastwriteln('Teste de blink Teste de blink Teste de blink Teste de blink Teste de blink');

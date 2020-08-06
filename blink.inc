@@ -3,7 +3,7 @@
 {Some blink routines by Kari Lammassaari
  This file contains following procedures:
 
-  - _WrtVdp(Register,Value:Byte);
+  - SetVdp(Register,Value:Byte);
   - BlinkChar(Column,Row:Byte);
   - ClearBlinkChar(Column,Row:Byte);
   - Blink(Column,Row,BlinkLength:Byte);
@@ -40,19 +40,19 @@ Const Vdp14     = 13; {Blink rate register in vdp}
 Var ColTbl: Array[0..255] Of Byte;
     TXTCOL: Integer Absolute $f3b5;  {Blink table addr}
 
-Procedure WrtVdp (Port, Value: Byte);
+Procedure SetVdp (Port, Value: Byte);
 Begin
     Inline ($F3/$3A/ Value  /$D3/$99/$3A/ Port /$F6/$80/$D3/$99 );
 End;
 
 Procedure SetBlinkRate (OnTime, OffTime: Byte);
 Begin
-    WrtVdp(Vdp14, OnTime * 16 + OffTime);
+    SetVdp(Vdp14, OnTime * 16 + OffTime);
 End;
 
 Procedure SetBlinkColors (ForegroundColor, BackGroundColor: Byte);
 Begin
-    WrtVdp(Vdp13, ForegroundColor * 16 + BackgroundColor);
+    SetVdp(Vdp13, ForegroundColor * 16 + BackgroundColor);
 End;
 
 Procedure SetBit (TableAddr, BitNumber: Byte; Operation: Boolean);
