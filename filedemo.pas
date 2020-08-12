@@ -53,6 +53,13 @@ const
     SETTXT = $0078;
     NAMBAS = $F922;
     EXPTBL = $FCC1;
+    
+    ENTER = #13;
+    RightArrow = #28;
+    LeftArrow = #29;
+    UpArrow = #30;
+    DownArrow = #31;
+    Space = #32;
 
 type
     ASCII = set of 0..255;
@@ -72,6 +79,7 @@ var i, j, k, l, MaxBlock, FirstSegment: integer;
     TextFileName: TFileName;
     ScreenBuffer: array[0..SizeScreen] of char;
     OriginalRegister9Value: byte;
+    ch: char;
 
     TempString: TString;
     TempTinyString: string[5];
@@ -127,8 +135,6 @@ BEGIN
     AllChars := [0..255];
     NoPrint := [0..31, 127, 255];
     Print := AllChars - NoPrint;
-    
-    SetExtendedScreen;
     
     writeln('Init Mapper? ', InitMapper(Mapper));
     PointerMapperVarTable := GetMapperVarTable(Mapper);
@@ -192,16 +198,19 @@ BEGIN
         WriteVRAM (0, j, addr(ScreenBuffer), $0780);
         j := j - $1000;
     end;
-{
-    ClearAllBlinks;
-    SetBlinkColors(DBlue, White);
-    SetBlinkRate(10, 10);
-}
+
+    ch := #00;
     j := $F000;
-    for l := 1 to 14 do
+    l := 1;
+    
+    while ch <> ENTER do
     begin
         TXTNAM := j;
         CallBas (0, 0, 0, 0, SETTXT);
+
+        ClearAllBlinks;
+        SetBlinkColors(DBlue, White);
+        SetBlinkRate(1, 0);
 
         fillchar(TempString, sizeof(TempString), ' ');
         TempString := concat('Arquivo: ', TextFileName, '  Pagina ');
@@ -210,18 +219,31 @@ BEGIN
         TempString := concat(TempString, TempTinyString);
         fillchar(TempTinyString, sizeof(TempTinyString), ' ');
         str(TotalPages, TempTinyString);
-        TempString := concat(TempString, ' de ', TempTinyString);
+        TempString := concat(TempString, ' de ', TempTinyString, '   ');
         gotoxy(1, 24);
         fastwriteln(TempString);
 
-        blink(10, 10, 10);
+        blink(1, 24, 80);
 
-        readln;
-        j := j - $1000;
+        read(kbd, ch);
+        if (ch = UpArrow) then
+        begin
+            j := j + $1000;
+            l := l - 1;
+        end;
+        if (ch = DownArrow) then
+        begin
+            j := j - $1000;
+            l := l + 1;
+        end;
+        if j > $F000 then j := $F000;
+        if j < $0000 then j := $0000;
+        if l < 1  then l := 1;
+        if l > 14 then l := 14;
     end;
     TXTNAM := 0;
     CallBas (0, 0, 0, 0, SETTXT);
 
     SetOriginalScreen;
-
+    writeln(l);
 END.
