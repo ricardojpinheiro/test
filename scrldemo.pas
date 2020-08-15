@@ -23,6 +23,9 @@
 
 program scrldemo;
 
+{$i d:types.inc}
+{$i d:fastwrit.inc}
+
 const
 {
   UpArrow = #30;
@@ -50,14 +53,14 @@ const
     EXPTBL = $FCC1;
 
     _CALROM: array[0..6] of byte = ($FD,$21,$00,$00,$C3,$D4,$20);
-
+{
 type
     TString = string[40];
-
+}
 var
     i, j, k, l: integer;
     Number: string[5];
-    temp: TString;
+    temp: string[40];
     Buffer: array [1..2048] of byte;
     Character: char;
     OriginalRegister9Value: byte;
@@ -145,14 +148,28 @@ begin
         fillchar(temp, sizeof(temp), chr(random(26) + 65));
         str(i, Number);
         temp := concat('Line ', Number, ' - ', temp);
-        writeln(temp);
+        fastwriteln(temp);
     end;
     writeln('Printed lines on the screen, from 1 to ', HowManyLines,'.');
 end;
 
 procedure sandbox;
+const
+    RightArrow = #28;
+    LeftArrow = #29;
+    UpArrow = #30;
+    DownArrow = #31;
+    Space = #32;
+var
+    ch : char;
 begin  
     clrscr;
+    ch := #00;
+    while ch <> Space do
+    begin
+        read(kbd, ch);
+        write(ord(ch), ' ');
+    end;
 end;
 
 procedure ScrollUp;
@@ -161,12 +178,12 @@ begin
 * Print 7 lines with rubbish, starting at the line 10.
 }
     clrscr;
-    Example (10, 7);
+    Example (1, 22);
 
-    gotoxy (1, 23);
-    writeln('Scroll up: from line 10 to 1.');
+    gotoxy (44, 23);
+    writeln('Scroll up: from line 10 to 9.');
     readln;
-    ScrollText(10, 1);
+    ScrollText(10, 9);
     readln;
     CallBas(32, $0C00, 0, 0, FILVRM);
 end;
@@ -247,16 +264,16 @@ BEGIN
     while (Character <> 'F') do
     begin
         clrscr;
-        writeln(' Scroll and SCREEN 0 pages demo program: ');
-        writeln(' Choose your weapon: ');
-        writeln(' 1 - Information about VDP.');
-        writeln(' 2 - Set extended screen (26,5 lines).');
-        writeln(' 3 - Scroll up.');
-        writeln(' 4 - Scroll down.');
-        writeln(' 5 - Placing data into SCREEN 0 pages.');
-        writeln(' 6 - Retrieving data from SCREEN 0 pages.');
-        writeln(' 7 - Sandbox.');
-        writeln(' F - End.');
+        fastwriteln(' Scroll and SCREEN 0 pages demo program: ');
+        fastwriteln(' Choose your weapon: ');
+        fastwriteln(' 1 - Information about VDP.');
+        fastwriteln(' 2 - Set extended screen (26,5 lines).');
+        fastwriteln(' 3 - Scroll up.');
+        fastwriteln(' 4 - Scroll down.');
+        fastwriteln(' 5 - Placing data into SCREEN 0 pages.');
+        fastwriteln(' 6 - Retrieving data from SCREEN 0 pages.');
+        fastwriteln(' 7 - Sandbox.');
+        fastwriteln(' F - End.');
         read(kbd, Character);
         Character := upcase(Character);
         case Character of 

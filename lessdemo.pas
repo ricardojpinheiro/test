@@ -1,28 +1,9 @@
 {
-   filedemo.pas
-   
-   Copyright 2020 Ricardo Jurczyk Pinheiro <ricardo@aragorn>
-   
-   This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
-   (at your option) any later version.
-   
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-   
-   You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-   MA 02110-1301, USA.
-   
-   
+   lessdemo.pas
 }
 
 
-program filedemo;
+program lessdemo;
 
 {$i d:types.inc}
 {$i d:dos.inc}
@@ -60,9 +41,6 @@ const
     UpArrow = #30;
     DownArrow = #31;
     Space = #32;
-    
-    _CALROM: array[0..6] of byte = ($FD,$21,$00,$00,$C3,$D4,$20);
-    _CALSUB: array[0..6] of byte = ($FD,$21,$00,$00,$C3,$D4,$20);   
 
 type
     ASCII = set of 0..255;
@@ -102,24 +80,6 @@ begin
     WriteLn (ErrorMessage);
     if ExitOrNot = true then
         Exit;
-end;
-
-Procedure FillVRAM (VRAMaddress: Integer;NumberOfBytes: Integer;Value: Byte);
-begin
-    inline ($DD/$21/$6B/$01/
-            $ED/$4B/NumberOfBytes/$2A/VRAMaddress/$3A/Value/$C3/_CALROM);
-end;
-
-Function Vpeek (VRAMaddress: Integer): Byte;
-begin
-    inline($DD/$21/$74/$01/
-           $2A/VRAMaddress/$CD/_CALROM/$6F/$26/$00/$C9);
-end;
-
-procedure Vpoke (VRAMaddress: Integer;Value: Byte);
-begin
-    inline($DD/$21/$77/$01/
-            $2A/VRAMaddress/$3A/Value/$C3/_CALROM);
 end;
 
 Procedure CallBas(AC: byte; BC, DE, HL, IX: integer);
@@ -193,14 +153,16 @@ BEGIN
 
     CloseResult := FileClose(BFileHandle);
 
-    i := 0;
-    j := $2000;
-    PutMapperPage (Mapper, FirstSegment, 2);
-    
-    for l := 1 to 14 do
+{
+*   Monta as duas primeiras telas. 
+}
+
+    i := FirstSegment;
+    j := $1000;
+    PutMapperPage (Mapper, i, 2);
+    for l := 1 to 2 do
     begin
         k := 0;
-        FillVRAM(j, $0730, 32);
         fillchar(ScreenBuffer, sizeof(ScreenBuffer), ' ' );
         while (k < $0730) do
         begin
@@ -220,10 +182,44 @@ BEGIN
         j := j + $1000;
     end;
 
-    ch := #00;
-    j := $2000;
-    l := 1;
+{
+* Copia a primeira pagina para a tela principal.
+}
+    SetExtendedScreen;
+    TXTNAM := $1000;
+    
 
+    i := 0;
+    j := $F000;
+    PutMapperPage (Mapper, FirstSegment, 2);
+    for l := 1 to 14 do
+    begin
+        k := 0;
+        gotoxy(1,7); 
+        writeln('Colocando a tela ', l, ' na VRAM...');
+        fillchar(ScreenBuffer, sizeof(ScreenBuffer), ' ' );
+        while (k < $0730) do
+        begin
+            if (Buffer[i] in Print) then
+                ScreenBuffer[k] := chr(Buffer[i])
+            else
+            begin
+                if (chr(Buffer[i]) = #9) then
+                    k := k + 8;
+                if (chr(Buffer[i]) = #13) then
+                    k := (((k div 80) + 1) * 80) - 2;
+            end;
+            i := i + 1;
+            k := k + 1;    
+        end;
+        WriteVRAM (0, j, addr(ScreenBuffer), $0780);
+        j := j - $1000;
+    end;
+
+    ch := #00;
+    j := $F000;
+    l := 1;
+   
     while ch <> ENTER do
     begin
         TXTNAM := j;
@@ -242,18 +238,31 @@ BEGIN
         str(TotalPages, TempTinyString);
         TempString := concat(TempString, ' de ', TempTinyString, '   ');
 
+        str(j, TempTinyString);
+        TempString := concat(TempString, ' Endereço: ', TempTinyString);
+
         gotoxy(1, 24);
         fastwriteln(TempString);
 
         blink(1, 24, 80);
 
         read(kbd, ch);
-        if (ch = Space) then
+        if (ch = 'W') then
+        begin
+            j := j - $1000;
+            l := l - 1;
+        end;
+        if (ch = 'S') then
         begin
             j := j + $1000;
             l := l + 1;
         end;
-        if l > 14 then ch := ENTER;
+
+        if j > $F000 then j := $F000;
+        if j < $0000 then j := $0000;
+        if l < 1  then l := 1;
+        if l > 14 then l := 14;
+
     end;
 
     TXTNAM := 0;
