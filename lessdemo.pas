@@ -54,12 +54,20 @@ const
     NAMBAS = $F922;
     EXPTBL = $FCC1;
     
-    ENTER = #13;
-    RightArrow = #28;
-    LeftArrow = #29;
-    UpArrow = #30;
-    DownArrow = #31;
-    Space = #32;
+    BS      = #08;
+    TAB     = #09;
+    HOME    = #11;
+    CLS     = #12;
+    ENTER   = #13;
+    INSERT  = #18;
+    SELECT  = #24;
+    ESC     = #27;
+    RightArrow  = #28;
+    LeftArrow   = #29;
+    UpArrow     = #30;
+    DownArrow   = #31;
+    Space   = #32;
+    Delete  = #127;
     
     _CALROM: array[0..6] of byte = ($FD,$21,$00,$00,$C3,$D4,$20);
     _CALSUB: array[0..6] of byte = ($FD,$21,$00,$00,$C3,$D4,$20);   
@@ -82,7 +90,7 @@ var i, j, k, l, Page, MaxBlock, FirstSegment: integer;
     TextFileName: TFileName;
     ScreenBuffer: array[0..SizeScreen] of char;
     OriginalRegister9Value: byte;
-    ch: char;
+    ch, sch: char;
 
     TempString: TString;
     TempTinyString: string[5];
@@ -160,16 +168,29 @@ Begin
   CSRY := nPosY;
 End;
 
+function Readkey : char;
+var
+    bt: integer;
+    qqc: byte absolute $FCA9;
+begin
+     readkey := chr(0);
+     qqc := 1;
+     Inline($f3/$fd/$2a/$c0/$fc/$DD/$21/$9F/00     
+            /$CD/$1c/00/$32/bt/$fb);
+     readkey := chr(bt);
+     qqc := 0;
+end;
+
 procedure FromRAMToVRAM (Segment, Page: byte);
 begin
 
 { Aqui, joga da RAM pra VRAM. }
     
-    i := (Page - 1) * $07D0;
+    i := (Page - 1) * $0730;
     PutMapperPage (Mapper, Segment, 2);
     k := 0;
     fillchar(ScreenBuffer, sizeof(ScreenBuffer), ' ' );
-    while (k < $07D0) do
+    while (k < $0730) do
     begin
         if (Buffer[i] in Print) then
             ScreenBuffer[k] := chr(Buffer[i])
@@ -183,7 +204,34 @@ begin
         i := i + 1;
         k := k + 1;    
     end;
-    WriteVRAM (0, $0000, addr(ScreenBuffer), $07E0);
+    WriteVRAM (0, $0000, addr(ScreenBuffer), $0730);
+end;
+
+procedure SetLastLine (TextFileName: TFileName; Page, TotalPages, Line: integer; Mode: boolean);
+var
+    StrMode: string[80];
+begin
+
+{ Faz todo o trabalho para colocar informacao na ultima linha. }
+            
+        if Mode = true then
+            StrMode := 'Modo linha'
+        else
+            StrMode := 'Modo pagina';
+
+        fillchar(TempString, sizeof(TempString), ' ');
+        TempString := concat('Arquivo: ', TextFileName, '  Pagina ');
+        fillchar(TempTinyString, sizeof(TempTinyString), ' ');
+        str(Page, TempTinyString);
+        TempString := concat(TempString, TempTinyString);
+        fillchar(TempTinyString, sizeof(TempTinyString), ' ');
+        str(TotalPages, TempTinyString);
+        TempString := concat(TempString, ' de ', TempTinyString, ' Linha ');
+        str(Line, TempTinyString);
+        TempString := concat(TempString, TempTinyString, ' ', StrMode, '   ');
+        gotoxy2(1, 24);
+        fastwriteln(TempString);
+        blink (1, 24, 80);
 end;
 
 BEGIN
@@ -229,9 +277,10 @@ BEGIN
 
     CloseResult := FileClose(BFileHandle);
 
-{ Aqui, ele mostra a pagina. Se teclar ENTER, sai do programa. }
+{ Aqui, ele mostra a pagina. Se teclar ESC, sai do programa. }
 
     ch := #00;
+    sch := #00;
     j := FirstSegment;
     Page := 1;
     l := 1;
@@ -241,40 +290,55 @@ BEGIN
     ClearAllBlinks;
     SetBlinkColors(DBlue, White);
     SetBlinkRate(1, 0);
-    SetExtendedScreen;
-    
-    while ch <> ENTER do
+{
+     SetExtendedScreen;
+}    
+    while ch <> ESC do
     begin
         NextPage := false;
         FromRAMToVRAM (j, Page);
         
 { Faz todo o trabalho para colocar informacao na ultima linha. }
 
-        fillchar(TempString, sizeof(TempString), ' ');
-        TempString := concat('Arquivo: ', TextFileName, '  Pagina ');
-        fillchar(TempTinyString, sizeof(TempTinyString), ' ');
-        str(Page, TempTinyString);
-        TempString := concat(TempString, TempTinyString);
-        fillchar(TempTinyString, sizeof(TempTinyString), ' ');
-        str(TotalPages, TempTinyString);
-        TempString := concat(TempString, ' de ', TempTinyString, ' Linha ');
-        Position := length(TempString);
-        gotoxy2(1, 26);
-        fastwriteln(TempString);
-        blink (1, 26, 80);
+        SetLastLine (TextFileName, Page, TotalPages, l, true);
         
         while not NextPage do
         begin
-            read(kbd, ch);
+            ch := readkey;
             ClearBlink(1, l, 80);
             case ch of
+                Home: Position := 1;
+                Select: begin
+                            SetLastLine (TextFileName, Page, TotalPages, l, false);
+                            while sch <> ESC do
+                            begin
+                                sch := readkey;
+                                case sch of
+                                    UpArrow: begin
+                                                Page := Page + 1;
+                                                NextPage := true;
+                                            end;
+                                    DownArrow: begin
+                                                Page := Page - 1;
+                                                NextPage := true;
+                                            end;
+                                    Home: begin
+                                            end;
+                                    Delete: begin
+                                            end;
+                                end;
+                                if Page < 1 then Page := 1;
+                                if Page > TotalPages then Page := TotalPages;
+                            end;
+                            SetLastLine (TextFileName, Page, TotalPages, l, true);
+                        end;
                 UpArrow: begin
                             l := l - 1;
                             if l < 1 then l := 1;
                         end;
                 DownArrow: begin
                                 l := l + 1;
-                                if l > 25 then 
+                                if l > 24 then 
                                 begin
                                     ch := Space;
                                     l := 1;
@@ -285,14 +349,11 @@ BEGIN
                             NextPage := true;
                         end;
             end;
-            blink (1, 26, 80);
-            blink (1, l, 80);
-            str(l, TempTinyString);
 {
-             TempTinyString := concat(TempTinyString, '     ');
+            blink (1, 24, 80);
 }
-            gotoxy2(Position + 1, 26);
-            fastwriteln(TempTinyString);
+            blink (1, l, 80);
+            SetLastLine (TextFileName, Page, TotalPages, l, true);
         end;
     end;
     SetOriginalScreen;

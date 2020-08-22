@@ -67,7 +67,7 @@ const
 type
     ASCII = set of 0..255;
 
-var i, j, k, l, MaxBlock, FirstSegment: integer;
+var i, j, k, l, Page, MaxBlock, FirstSegment: integer;
     MaxSize: real;
     buffer: array [0..Limit] of Byte absolute $8000; { Page 2 }
     BFileHandle: byte;
@@ -163,6 +163,8 @@ BEGIN
     writeln('Reading services file...');
     TextFileName := 'd:\services';
 
+{ Le arquivo 1a vez - pega o tamanho de tudo. }
+
     assign(B2FileHandle, TextFileName);
     reset(B2FileHandle);
     MaxSize := (FileSize(B2FileHandle) * 128);
@@ -170,8 +172,12 @@ BEGIN
     writeln('FileSize = ', MaxSize:0:0, ' bytes.');
     close(B2FileHandle);
 
+{ Le arquivo 2a vez - le e joga na Mapper. }
+
     BFileHandle := FileOpen (TextFileName, 'r');
     SeekResult := FileSeek (BFileHandle, 0, ctSeekSet, NewPosition);
+
+{ Comeca com o segmento 4 da memoria. }
 
     FirstSegment := 4;
     i := FirstSegment;
@@ -193,14 +199,18 @@ BEGIN
 
     CloseResult := FileClose(BFileHandle);
 
+{ Aqui, joga da RAM pra VRAM. No momento, ele preenche 5 paginas. }
+
     i := 0;
     j := $2000;
     PutMapperPage (Mapper, FirstSegment, 2);
     
-    for l := 1 to 14 do
+    for l := 1 to 5 do
     begin
         k := 0;
+{
         FillVRAM(j, $0730, 32);
+}
         fillchar(ScreenBuffer, sizeof(ScreenBuffer), ' ' );
         while (k < $0730) do
         begin
@@ -220,23 +230,30 @@ BEGIN
         j := j + $1000;
     end;
 
+{ Aqui, ele mostra a pagina. Se teclar ENTER, sai do programa. }
+
     ch := #00;
     j := $2000;
+    Page := 1;
     l := 1;
+
+{ Limpa os blinks }
+
+    ClearAllBlinks;
+    SetBlinkColors(DBlue, White);
+    SetBlinkRate(1, 0);
 
     while ch <> ENTER do
     begin
         TXTNAM := j;
         CallBas (0, 0, 0, 0, SETTXT);
 
-        ClearAllBlinks;
-        SetBlinkColors(DBlue, White);
-        SetBlinkRate(1, 0);
+{ Faz todo um trabalho para colocar informacao na ultima linha. }
 
         fillchar(TempString, sizeof(TempString), ' ');
         TempString := concat('Arquivo: ', TextFileName, '  Pagina ');
         fillchar(TempTinyString, sizeof(TempTinyString), ' ');
-        str(l, TempTinyString);
+        str(Page, TempTinyString);
         TempString := concat(TempString, TempTinyString);
         fillchar(TempTinyString, sizeof(TempTinyString), ' ');
         str(TotalPages, TempTinyString);
@@ -245,15 +262,27 @@ BEGIN
         gotoxy(1, 24);
         fastwriteln(TempString);
 
-        blink(1, 24, 80);
-
         read(kbd, ch);
-        if (ch = Space) then
-        begin
-            j := j + $1000;
-            l := l + 1;
+        case ch of
+            UpArrow: begin
+                        l := l - 1;
+                        if l < 1 then l := 1;
+                    end;
+            DownArrow: begin
+                            l := l + 1;
+                            if l > 23 then 
+                            begin
+                                ch := Space;
+                                l := 1;
+                            end;
+                        end;
+            Space: begin
+                        j := j + $1000;
+                        Page := Page + 1;
+                    end;
         end;
-        if l > 14 then ch := ENTER;
+        blink (1, l, 80);
+        if Page > 14 then ch := ENTER;
     end;
 
     TXTNAM := 0;

@@ -153,6 +153,18 @@ begin
     writeln('Printed lines on the screen, from 1 to ', HowManyLines,'.');
 end;
 
+function Inkey:char;
+var bt:integer;
+    qqc:byte absolute $FCA9;
+begin
+     Inkey:=chr(0);
+     qqc:=1;
+     Inline($f3/$fd/$2a/$c0/$fc/$DD/$21/$9F/00     
+            /$CD/$1c/00/$32/bt/$fb);
+     Inkey:=chr(bt);
+     qqc:=0;
+end;
+
 procedure sandbox;
 const
     RightArrow = #28;
@@ -167,8 +179,8 @@ begin
     ch := #00;
     while ch <> Space do
     begin
-        read(kbd, ch);
-        write(ord(ch), ' ');
+        ch:=Inkey;
+        writeln(ch,'  ',ord(ch));
     end;
 end;
 
