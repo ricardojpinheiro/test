@@ -280,7 +280,6 @@ BEGIN
 { Aqui, ele mostra a pagina. Se teclar ESC, sai do programa. }
 
     ch := #00;
-    sch := #00;
     j := FirstSegment;
     Page := 1;
     l := 1;
@@ -309,8 +308,9 @@ BEGIN
             case ch of
                 Home: Position := 1;
                 Select: begin
+                            sch := #00; 
                             SetLastLine (TextFileName, Page, TotalPages, l, false);
-                            while sch <> ESC do
+                            while sch <> ENTER do
                             begin
                                 sch := readkey;
                                 case sch of
@@ -344,10 +344,6 @@ BEGIN
                                     l := 1;
                                 end;
                             end;
-                Space: begin
-                            Page := Page + 1;
-                            NextPage := true;
-                        end;
             end;
 {
             blink (1, 24, 80);
@@ -356,5 +352,6 @@ BEGIN
             SetLastLine (TextFileName, Page, TotalPages, l, true);
         end;
     end;
+    ClearAllBlinks;
     SetOriginalScreen;
 END.
