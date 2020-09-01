@@ -17,12 +17,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
    MA 02110-1301, USA.
-   
-   
 }
 
-
-program filedemo;
+program lessdemo;
 
 {$i d:types.inc}
 {$i d:dos.inc}
@@ -54,20 +51,28 @@ const
     NAMBAS = $F922;
     EXPTBL = $FCC1;
     
-    BS      = #08;
-    TAB     = #09;
-    HOME    = #11;
-    CLS     = #12;
-    ENTER   = #13;
-    INSERT  = #18;
-    SELECT  = #24;
-    ESC     = #27;
+    CONTROLB    = #02;
+    CONTROLE    = #05;
+    CONTROLF    = #06;
+    CONTROLK    = #11;
+    CONTROLN    = #14;
+    CONTROLP    = #16;
+    CONTROLV    = #22;
+    CONTROLY    = #25;
+    BS          = #08;
+    TAB         = #09;
+    HOME        = #11;
+    CLS         = #12;
+    ENTER       = #13;
+    INSERT      = #18;
+    SELECT      = #24;
+    ESC         = #27;
     RightArrow  = #28;
     LeftArrow   = #29;
     UpArrow     = #30;
     DownArrow   = #31;
-    Space   = #32;
-    Delete  = #127;
+    Space       = #32;
+    DELETE      = #127;
     
     _CALROM: array[0..6] of byte = ($FD,$21,$00,$00,$C3,$D4,$20);
     _CALSUB: array[0..6] of byte = ($FD,$21,$00,$00,$C3,$D4,$20);   
@@ -159,6 +164,29 @@ begin
     setVDP(9, OriginalRegister9Value);
 end;
 
+Procedure ClrScr2;
+Const
+        ctCLS     = $00C3;  { Clear screen, including graphic modes }
+Var
+        regs   : TRegs;
+        CSRY   : Byte Absolute $F3DC; { Current row-position of the cursor    }
+        CSRX   : Byte Absolute $F3DD; { Current column-position of the cursor }
+        EXPTBL : Byte Absolute $FCC1; { Slot 0 }
+
+Begin
+  regs.IX := ctCLS;
+  regs.IY := EXPTBL;
+  (*
+   * The Z80 zero flag must be set before calling the CLS BIOS function.
+   * Check the MSX BIOS specification
+   *)
+  Inline( $AF );            { XOR A    }
+
+  CALSLT( regs );
+  CSRX := 1;
+  CSRY := 1;
+End;
+
 Procedure GotoXY2( nPosX, nPosY : Byte );
 Var
        CSRY : Byte Absolute $F3DC; { Current row-position of the cursor    }
@@ -186,7 +214,7 @@ begin
 
 { Aqui, joga da RAM pra VRAM. }
     
-    i := (Page - 1) * $0730;
+    i := ((Page - 1) mod 8) * $0730;
     PutMapperPage (Mapper, Segment, 2);
     k := 0;
     fillchar(ScreenBuffer, sizeof(ScreenBuffer), ' ' );
@@ -205,33 +233,28 @@ begin
         k := k + 1;    
     end;
     WriteVRAM (0, $0000, addr(ScreenBuffer), $0730);
+    gotoxy(55,24);
+    writeln('Mapper: ', Segment);
 end;
 
-procedure SetLastLine (TextFileName: TFileName; Page, TotalPages, Line: integer; Mode: boolean);
-var
-    StrMode: string[80];
+procedure SetLastLine (TextFileName: TFileName; Page, TotalPages, Line: integer);
 begin
 
 { Faz todo o trabalho para colocar informacao na ultima linha. }
             
-        if Mode = true then
-            StrMode := 'Modo linha'
-        else
-            StrMode := 'Modo pagina';
-
-        fillchar(TempString, sizeof(TempString), ' ');
-        TempString := concat('Arquivo: ', TextFileName, '  Pagina ');
-        fillchar(TempTinyString, sizeof(TempTinyString), ' ');
-        str(Page, TempTinyString);
-        TempString := concat(TempString, TempTinyString);
-        fillchar(TempTinyString, sizeof(TempTinyString), ' ');
-        str(TotalPages, TempTinyString);
-        TempString := concat(TempString, ' de ', TempTinyString, ' Linha ');
-        str(Line, TempTinyString);
-        TempString := concat(TempString, TempTinyString, ' ', StrMode, '   ');
-        gotoxy2(1, 24);
-        fastwriteln(TempString);
-        blink (1, 24, 80);
+    fillchar(TempString, sizeof(TempString), ' ');
+    TempString := concat('File: ', TextFileName, '  Page ');
+    fillchar(TempTinyString, sizeof(TempTinyString), ' ');
+    str(Page, TempTinyString);
+    TempString := concat(TempString, TempTinyString);
+    fillchar(TempTinyString, sizeof(TempTinyString), ' ');
+    str(TotalPages, TempTinyString);
+    TempString := concat(TempString, ' of ', TempTinyString, ' Line ');
+    str(Line, TempTinyString);
+    TempString := concat(TempString, TempTinyString, ' ');
+    gotoxy2(1, 24);
+    fastwriteln(TempString);
+    blink (1, 24, 80);
 end;
 
 BEGIN
@@ -251,8 +274,9 @@ BEGIN
     assign(B2FileHandle, TextFileName);
     reset(B2FileHandle);
     MaxSize := (FileSize(B2FileHandle) * 128);
-    TotalPages := round(int(MaxSize / (SizeTextScreen + 1)));
-    writeln('FileSize = ', MaxSize:0:0, ' bytes.');
+    TotalPages := round(int(MaxSize / (SizeTextScreen + 1))) + 1;
+    writeln('MaxSize = ', MaxSize:0:0, ' bytes.');
+    writeln('TotalPages = ', TotalPages);
     close(B2FileHandle);
 
 { Le arquivo 2a vez - le e joga na Mapper. }
@@ -269,11 +293,13 @@ BEGIN
     while (i <= (MaxBlock + FirstSegment)) do
     begin
         PutMapperPage (Mapper, i, 2);
-        gotoxy(1, 6); writeln('Block: ', i, ' New Position: ', NewPosition);
+        gotoxy(20, 5); writeln('Block: ', i, ' MaxBlock + FirstSegment: ', MaxBlock + FirstSegment);
         fillchar(Buffer, sizeof (Buffer), 0 );
         BlockReadResult := FileBlockRead (BFileHandle, Buffer, Limit);
         i := i + 1;
     end;
+
+    readln;
 
     CloseResult := FileClose(BFileHandle);
 
@@ -281,7 +307,7 @@ BEGIN
 
     ch := #00;
     j := FirstSegment;
-    Page := 1;
+    Page := 340;
     l := 1;
 
 { Limpa os blinks }
@@ -289,67 +315,71 @@ BEGIN
     ClearAllBlinks;
     SetBlinkColors(DBlue, White);
     SetBlinkRate(1, 0);
-{
-     SetExtendedScreen;
-}    
+
     while ch <> ESC do
     begin
         NextPage := false;
+        j := (Page div 8) + FirstSegment;
         FromRAMToVRAM (j, Page);
         
 { Faz todo o trabalho para colocar informacao na ultima linha. }
+        blink (1, l, 80);
+        SetLastLine (TextFileName, Page, TotalPages, l);
 
-        SetLastLine (TextFileName, Page, TotalPages, l, true);
-        
         while not NextPage do
         begin
             ch := readkey;
             ClearBlink(1, l, 80);
             case ch of
-                Home: Position := 1;
-                Select: begin
-                            sch := #00; 
-                            SetLastLine (TextFileName, Page, TotalPages, l, false);
-                            while sch <> ENTER do
-                            begin
-                                sch := readkey;
-                                case sch of
-                                    UpArrow: begin
-                                                Page := Page + 1;
-                                                NextPage := true;
-                                            end;
-                                    DownArrow: begin
-                                                Page := Page - 1;
-                                                NextPage := true;
-                                            end;
-                                    Home: begin
-                                            end;
-                                    Delete: begin
-                                            end;
-                                end;
-                                if Page < 1 then Page := 1;
-                                if Page > TotalPages then Page := TotalPages;
-                            end;
-                            SetLastLine (TextFileName, Page, TotalPages, l, true);
+                ESC: begin
+                        ClearAllBlinks;
+                        SetOriginalScreen;
+                        exit;
+                    end;
+                Home: l := 1;
+                Select: l := 23;
+                Insert: begin
+                            Page := 1;
+                            NextPage := true;
                         end;
+                Delete: begin
+                            Page := TotalPages;
+                            NextPage := true;
+                        end;
+                Space: begin
+                            Page := Page + 1;
+                            NextPage := true;
+                        end;
+                ControlB: begin
+                                Page := Page - 1;
+                                NextPage := true;
+                            end;
                 UpArrow: begin
                             l := l - 1;
-                            if l < 1 then l := 1;
+                            if l < 1 then 
+                            begin
+                                Page := Page - 1;
+                                NextPage := true;
+                                l := 1;
+                            end;
                         end;
                 DownArrow: begin
                                 l := l + 1;
-                                if l > 24 then 
+                                if l > 23 then 
                                 begin
-                                    ch := Space;
+                                    Page := Page + 1;
+                                    NextPage := true;
                                     l := 1;
                                 end;
                             end;
             end;
+            if Page < 1 then Page := 1;
+            if Page > TotalPages then Page := TotalPages;
 {
             blink (1, 24, 80);
 }
             blink (1, l, 80);
-            SetLastLine (TextFileName, Page, TotalPages, l, true);
+            SetLastLine (TextFileName, Page, TotalPages, l);
         end;
     end;
     ClearAllBlinks;
