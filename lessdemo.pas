@@ -94,12 +94,13 @@ var i, j, k, l, Page, MaxBlock, FirstSegment: integer;
     NewPosition: integer;
     TextFileName: TFileName;
     ScreenBuffer: array[0..SizeScreen] of char;
+    EndOfPage: array[0..8] of integer;
     OriginalRegister9Value: byte;
     ch, sch: char;
 
     TempString: TString;
     TempTinyString: string[5];
-    TotalPages: integer;
+    Segment, TotalPages: integer;
     VDPSAV1: array[0..7]  of byte absolute $F3DF;
     VDPSAV2: array[8..23] of byte absolute $FFE7;
     TXTNAM : integer absolute $F3B3;
@@ -210,12 +211,20 @@ begin
 end;
 
 procedure FromRAMToVRAM (Segment, Page: byte);
+var 
+    i, j: integer;
 begin
 
 { Aqui, joga da RAM pra VRAM. }
-    
-    i := ((Page - 1) mod 8) * $0730;
+    j := Page mod 8;
+    if j = 0 then
+        j := 8;
+    i := EndOfPage[j - 1];
+{    
+    gotoxy(1,1); writeln('i inicial: ', i);
+}
     PutMapperPage (Mapper, Segment, 2);
+
     k := 0;
     fillchar(ScreenBuffer, sizeof(ScreenBuffer), ' ' );
     while (k < $0730) do
@@ -233,8 +242,10 @@ begin
         k := k + 1;    
     end;
     WriteVRAM (0, $0000, addr(ScreenBuffer), $0730);
-    gotoxy(55,24);
-    writeln('Mapper: ', Segment);
+    EndOfPage[j] := i;
+{    
+    gotoxy(41,1); writeln('i final: ', i, ' k: ', k);
+}
 end;
 
 procedure SetLastLine (TextFileName: TFileName; Page, TotalPages, Line: integer);
@@ -307,7 +318,8 @@ BEGIN
 
     ch := #00;
     j := FirstSegment;
-    Page := 340;
+    Page := 1;
+    EndOfPage[0] := 0;
     l := 1;
 
 { Limpa os blinks }
@@ -319,8 +331,8 @@ BEGIN
     while ch <> ESC do
     begin
         NextPage := false;
-        j := (Page div 8) + FirstSegment;
-        FromRAMToVRAM (j, Page);
+        Segment := (Page div 8) + FirstSegment;
+        FromRAMToVRAM (Segment, Page);
         
 { Faz todo o trabalho para colocar informacao na ultima linha. }
         blink (1, l, 80);
