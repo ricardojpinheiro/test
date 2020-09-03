@@ -35,8 +35,10 @@ program lessdemo;
 
 const
     Limit = 16383;
+    MaxNumberOfPages = 4048;
     SizeScreen = 1919;
     SizeTextScreen = 1839;
+    PagesPerSegment = 16;
     
     WRTVDP = $0047;
     RDVRM  = $004A;
@@ -94,7 +96,7 @@ var i, j, k, l, Page, MaxBlock, FirstSegment: integer;
     NewPosition: integer;
     TextFileName: TFileName;
     ScreenBuffer: array[0..SizeScreen] of char;
-    EndOfPage: array[0..8] of integer;
+    EndOfPage: array[0..MaxNumberOfPages] of integer absolute $C000; { Page 3 }
     OriginalRegister9Value: byte;
     ch, sch: char;
 
@@ -212,22 +214,23 @@ end;
 
 procedure FromRAMToVRAM (Segment, Page: byte);
 var 
-    i, j: integer;
+    i, j, newk: integer;
 begin
-
+    newk := 0;
+    
 { Aqui, joga da RAM pra VRAM. }
-    j := Page mod 8;
-    if j = 0 then
-        j := 8;
-    i := EndOfPage[j - 1];
-{    
-    gotoxy(1,1); writeln('i inicial: ', i);
-}
-    PutMapperPage (Mapper, Segment, 2);
 
+{
+    j := Page mod PagesPerSegment;
+    if j = 0 then
+        j := PagesPerSegment;
+}
+    i := EndOfPage[Page - 1];
     k := 0;
+    PutMapperPage (Mapper, Segment, 2);
     fillchar(ScreenBuffer, sizeof(ScreenBuffer), ' ' );
-    while (k < $0730) do
+
+    while (k < 1840) do
     begin
         if (Buffer[i] in Print) then
             ScreenBuffer[k] := chr(Buffer[i])
@@ -239,13 +242,41 @@ begin
                 k := (((k div 80) + 1) * 80) - 2;
         end;
         i := i + 1;
-        k := k + 1;    
+        k := k + 1;
+        if i = (Limit + 1) then
+            newk := k;
     end;
+{ Se o i for maior do que 16384, tem que pegar a parte do texto do bloco seguinte. }
+
+    if i >= Limit then
+    begin
+        for i := newk to 1840 do
+            ScreenBuffer[k] := chr(32);
+        i := 0;
+        k := newk - 1;
+        PutMapperPage (Mapper, Segment + 1, 2);
+        while (k < 1840) do
+        begin
+            if (Buffer[i] in Print) then
+                ScreenBuffer[k] := chr(Buffer[i])
+            else
+            begin
+                if (chr(Buffer[i]) = #9) then
+                    k := k + 8;
+                if (chr(Buffer[i]) = #13) then
+                    k := (((k div 80) + 1) * 80) - 2;
+            end;
+            i := i + 1;
+            k := k + 1;  
+        end;
+    end;
+
     WriteVRAM (0, $0000, addr(ScreenBuffer), $0730);
-    EndOfPage[j] := i;
-{    
-    gotoxy(41,1); writeln('i final: ', i, ' k: ', k);
-}
+    EndOfPage[Page] := i;
+    
+     gotoxy(1, 1); writeln(' newk: ',newk, ' i',Page-1,': ', EndOfPage[Page-1], 
+                            ' i',Page,': ', EndOfPage[Page], ' Page: ',Page, ' k: ', k);
+
 end;
 
 procedure SetLastLine (TextFileName: TFileName; Page, TotalPages, Line: integer);
@@ -331,7 +362,7 @@ BEGIN
     while ch <> ESC do
     begin
         NextPage := false;
-        Segment := (Page div 8) + FirstSegment;
+        Segment := (Page div PagesPerSegment) + FirstSegment;
         FromRAMToVRAM (Segment, Page);
         
 { Faz todo o trabalho para colocar informacao na ultima linha. }
