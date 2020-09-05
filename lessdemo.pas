@@ -212,70 +212,63 @@ begin
      qqc := 0;
 end;
 
+procedure PreProcessing;
+begin
+end;
+
 procedure FromRAMToVRAM (Segment, Page: byte);
 var 
-    i, j, newk: integer;
+    i, j: integer;
+    
 begin
-    newk := 0;
     
 { Aqui, joga da RAM pra VRAM. }
 
-{
-    j := Page mod PagesPerSegment;
+    j := Page mod (PagesPerSegment + 1);
     if j = 0 then
         j := PagesPerSegment;
-}
-    i := EndOfPage[Page - 1];
+        
+    i := EndOfPage[j - 1];
     k := 0;
     PutMapperPage (Mapper, Segment, 2);
     fillchar(ScreenBuffer, sizeof(ScreenBuffer), ' ' );
 
-    while (k < 1840) do
+    while (k < $0730) and (i < Limit) do
     begin
-        if (Buffer[i] in Print) then
-            ScreenBuffer[k] := chr(Buffer[i])
-        else
-        begin
-            if (chr(Buffer[i]) = #9) then
-                k := k + 8;
-            if (chr(Buffer[i]) = #13) then
-                k := (((k div 80) + 1) * 80) - 2;
-        end;
+        case Buffer[i] of
+            9:              k := k + 8;
+            13:             k := (((k div 80) + 1) * 80) - 2;
+            10, 127, 255:   k := k + 0;
+            else            ScreenBuffer[k] := chr(Buffer[i]);
+        end;        
         i := i + 1;
         k := k + 1;
-        if i = (Limit + 1) then
-            newk := k;
     end;
+    
 { Se o i for maior do que 16384, tem que pegar a parte do texto do bloco seguinte. }
 
     if i >= Limit then
     begin
-        for i := newk to 1840 do
-            ScreenBuffer[k] := chr(32);
         i := 0;
-        k := newk - 1;
         PutMapperPage (Mapper, Segment + 1, 2);
-        while (k < 1840) do
+        while (k < $0730) do
         begin
-            if (Buffer[i] in Print) then
-                ScreenBuffer[k] := chr(Buffer[i])
-            else
-            begin
-                if (chr(Buffer[i]) = #9) then
-                    k := k + 8;
-                if (chr(Buffer[i]) = #13) then
-                    k := (((k div 80) + 1) * 80) - 2;
-            end;
+            case Buffer[i] of
+                9:              k := k + 8;
+                13:             k := (((k div 80) + 1) * 80) - 2;
+                10, 127, 255:   k := k + 0;
+                else            ScreenBuffer[k] := chr(Buffer[i]);
+            end;          
             i := i + 1;
-            k := k + 1;  
+            k := k + 1;
         end;
     end;
 
     WriteVRAM (0, $0000, addr(ScreenBuffer), $0730);
-    EndOfPage[Page] := i;
+    EndOfPage[j] := i;
     
-     gotoxy(1, 1); writeln(' newk: ',newk, ' i',Page-1,': ', EndOfPage[Page-1], 
-                            ' i',Page,': ', EndOfPage[Page], ' Page: ',Page, ' k: ', k);
+     gotoxy(1, 1); writeln('k: ',k, ' i',j - 1,': ', EndOfPage[j - 1], 
+                 ' i',j,': ', EndOfPage[j], ' Page: ',Page, ' Segment: ', Segment); 
 
 end;
 
@@ -358,7 +351,11 @@ BEGIN
     ClearAllBlinks;
     SetBlinkColors(DBlue, White);
     SetBlinkRate(1, 0);
+{
+    PreProcessing;
 
+exit;
+}
     while ch <> ESC do
     begin
         NextPage := false;
