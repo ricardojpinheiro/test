@@ -265,7 +265,7 @@ begin
     k := 0;
     fillchar(ScreenBuffer, sizeof(ScreenBuffer), ' ');
     temporary := EndOfPage[Page];
-    if Page = MaxTotalPagesPerSegment then
+    if Page = MaxTotalPagesPerSegment - 1 then
         temporary := Limit;
 
     while (k < (80 * 23)) and (i < temporary) do
@@ -276,19 +276,21 @@ begin
             PutMapperPage (Mapper, Segment + 1, 2);
             temporary := EndOfPage[Page + 1];
         end;
-        case Buffer[i] of
-            9:              k := k + 8;
-            13:             k := (((k div 80) + 1) * 80) - 2;
-            10, 127, 255:   k := k + 0;
-            else            ScreenBuffer[k] := chr(Buffer[i]);
-        end;        
+        if Buffer[i] in Print then
+            ScreenBuffer[k] := chr(Buffer[i])
+        else
+            case Buffer[i] of
+                9:              k := k + 8;
+                13:             k := (((k div 80) + 1) * 80) - 2;
+                10, 127, 255:   k := k + 0;
+            end;
         i := i + 1;
         k := k + 1;
     end;
     WriteVRAM (0, $0000, addr(ScreenBuffer), $0730);
 end;
 
-procedure SetLastLine (TextFileName: TFileName; Page, TotalPages, Line: integer);
+procedure SetLastLine (TextFileName: TFileName; PagePerDocument, TotalPages, Line: integer);
 begin
 
 { Faz todo o trabalho para colocar informacao na ultima linha. }
@@ -296,7 +298,7 @@ begin
     fillchar(TempString, sizeof(TempString), ' ');
     TempString := concat('File: ', TextFileName, '  Page ');
     fillchar(TempTinyString, sizeof(TempTinyString), ' ');
-    str(Page, TempTinyString);
+    str(PagePerDocument, TempTinyString);
     TempString := concat(TempString, TempTinyString);
     fillchar(TempTinyString, sizeof(TempTinyString), ' ');
     str(TotalPages, TempTinyString);
@@ -358,9 +360,7 @@ BEGIN
     ch := #00;
     j := FirstSegment;
     Segment := 4;
-    Page := 12;
-    for i := 0 to PagesPerSegment do
-        EndOfPage[i] := 0;
+    Page := 13;
     l := 1;
 
 { Limpa os blinks }
@@ -398,7 +398,7 @@ BEGIN
                             NextPage := true;
                         end;
                 Delete: begin
-                            Page := TotalPages;
+                            Page := MaxTotalPagesPerSegment;
                             NextPage := true;
                         end;
                 Space: begin
@@ -430,11 +430,12 @@ BEGIN
             end;
             if Page < 1 then Page := 1;
             if Page > TotalPages then Page := TotalPages;
-            if Page > MaxTotalPagesPerSegment then
+            if Page >= MaxTotalPagesPerSegment then
             begin
                 Page := 1;
                 Segment := Segment + 1;
                 MaxTotalPagesPerSegment := PreProcessing (Segment);
+                NextPage := true;
             end;
 {
             blink (1, 24, 80);
