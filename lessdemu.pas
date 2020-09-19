@@ -17,8 +17,8 @@ program lessdemo;
 {$i d:blink.inc}
 
 const
-    Limit = 16336;
-    SizeScreen = 1919;
+    Limit = 16384;
+    SizeScreen = 1840;
     SizeTextScreen = 1840;
     PagesPerSegment = 16;
     
@@ -66,7 +66,7 @@ type
 
 var i, j, k, l, Page, MaxBlock, FirstSegment: integer;
     MaxSize: real;
-    buffer: array [0..Limit] of Byte absolute $8000; { Page 2 }
+    Buffer: array [0..Limit] of Byte absolute $8000; { Page 2 }
     BFileHandle: byte;
     B2FileHandle: file;
     NoPrint, Print, AllChars: ASCII;
@@ -78,10 +78,12 @@ var i, j, k, l, Page, MaxBlock, FirstSegment: integer;
     NewPosition: integer;
     TextFileName: TFileName;
     ScreenBuffer: array[0..SizeScreen] of char;
-    EndOfPage: array[0..PagesPerSegment] of integer absolute $BFD0; { Page 2 }
+    Buffer2: array[0..SizeScreen] of byte absolute $C000; { Page 3 }
+    EndOfPage: array[0..PagesPerSegment] of integer;
     PageRemnant: integer;
     OriginalRegister9Value: byte;
     ch, sch: char;
+    NextSegment: boolean;
 
     TempString: TString;
     TempTinyString: string[5];
@@ -198,7 +200,6 @@ end;
 function PreProcessing (Segment: Byte): byte;
 var 
     EndOfPageIndex, BufferIndex, ScreenBufferIndex, temporary: integer;
-    NextSegment: boolean;
 begin
     
 { A função dessa rotina de pre-processamento é localizar onde começa e onde
@@ -243,56 +244,64 @@ begin
             end;
             
             case Buffer[BufferIndex] of
-                9:              ScreenBufferIndex := ScreenBufferIndex + 8;
-                13:             ScreenBufferIndex := (((ScreenBufferIndex div 80) + 1) * 80) - 2;
-                else            ScreenBufferIndex := ScreenBufferIndex + 1;
+                9:      ScreenBufferIndex := ScreenBufferIndex + 8;
+                13:     ScreenBufferIndex := (((ScreenBufferIndex div 80) + 1) * 80) - 2;
+                else    ScreenBufferIndex := ScreenBufferIndex + 1;
             end;
             BufferIndex := BufferIndex + 1;
         end;
         EndOfPage[EndOfPageIndex] := BufferIndex - 1;
         writeln('EndOfPage[',EndOfPageIndex - 1,']=',temporary, ' EndOfPage[',EndOfPageIndex,']=',EndOfPage[EndOfPageIndex]);
     until (EndOfPage[EndOfPageIndex] < temporary);
-    
+{    
     EndOfPage[EndOfPageIndex] := Limit;
-{
+
      if NextSegment then
         PageRemnant := EndOfPage[EndOfPageIndex];
 }
     PreProcessing := EndOfPageIndex;
 end;
 
-procedure FromRAMToVRAM (Segment: integer; Page, MaxTotalPagesPerSegment: byte);
+procedure FromRAMToVRAM (Segment, Beginning, Finish: integer; Page, MaxTotalPagesPerSegment: byte);
 var 
     i, j, temporary: integer;
-    
+    bch: byte;
 begin
     
 { Aqui, joga da RAM pra VRAM. }
 
+    k := 0;
+    NextSegment := false;
+
     PutMapperPage (Mapper, Segment, 2);
-    i := EndOfPage[Page - 1];
+    i := Beginning;
 
     if Page > 1 then
         i := i - 2;
-    k := 0;
 
     fillchar(ScreenBuffer, sizeof(ScreenBuffer), ' ');
-    temporary := EndOfPage[Page];
-    if Page = MaxTotalPagesPerSegment - 1 then
-        temporary := Limit;
+    temporary := Finish;
 
-    while (k < SizeTextScreen) and (i < temporary) do
+    if Page >= MaxTotalPagesPerSegment then
+        temporary := temporary + Limit;
+{
+    writeln('-->', Segment,' ', Page, ' ', Beginning, ' ', Finish, ' ', temporary, ' ', MaxTotalPagesPerSegment);
+    readln;
+}
+    while (k < SizeTextScreen) do
     begin
-        if i >= Limit then
-        begin
-            i := 0;
+        if i = Limit then
             PutMapperPage (Mapper, Segment + 1, 2);
-            temporary := EndOfPage[Page + 1];
-        end;
-        if Buffer[i] in Print then
-            ScreenBuffer[k] := chr(Buffer[i])
+        
+        if i >= Limit then
+            bch := Buffer[i - Limit]
         else
-            case Buffer[i] of
+            bch := Buffer[i];
+          
+        if bch in Print then
+            ScreenBuffer[k] := chr(bch)
+        else
+            case bch of
                 9:              k := k + 8;
                 13:             k := (((k div 80) + 1) * 80) - 2;
                 10, 127, 255:   k := k + 0;
@@ -300,7 +309,9 @@ begin
         i := i + 1;
         k := k + 1;
     end;
+
     WriteVRAM (0, $0000, addr(ScreenBuffer), $0730);
+
 end;
 
 procedure SetLastLine (TextFileName: TFileName; PagePerDocument, TotalPages, Line: integer);
@@ -374,7 +385,7 @@ BEGIN
     ch := #00;
     j := FirstSegment;
     Segment := 4;
-    Page := 14;
+    Page := 1;
     l := 1;
 
 { Limpa os blinks }
@@ -384,14 +395,12 @@ BEGIN
     SetBlinkRate(1, 0);
 
     MaxTotalPagesPerSegment := PreProcessing (Segment);
-    LastSegment := Segment;
-    
     readln;
     
     while ch <> ESC do
     begin
         NextPage := false;
-        FromRAMToVRAM (Segment, Page, MaxTotalPagesPerSegment);
+        FromRAMToVRAM (Segment, EndOfPage[Page - 1], EndOfPage[Page], Page, MaxTotalPagesPerSegment);
         
 { Faz todo o trabalho para colocar informacao na ultima linha. }
         blink (1, l, 80);
@@ -446,7 +455,7 @@ BEGIN
             end;
             if Page < 1 then Page := 1;
             if Page > TotalPages then Page := TotalPages;
-            if Page >= MaxTotalPagesPerSegment then
+            if Page > MaxTotalPagesPerSegment then
             begin
                 Page := 1;
                 Segment := Segment + 1;
