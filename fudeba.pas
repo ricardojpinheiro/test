@@ -26,13 +26,19 @@ program fudeba;
 
 var i, retorno : integer;
 
-    hashemtexto: string[7];
+    Linha: string[255];
+    BUffer: array [1..255] of byte;
 
 BEGIN
-    hashemtexto := '0000001';
-
-    val (hashemtexto, i, retorno); 
-    writeln(i);
+    Linha := 'Isto e um teste de texto.         Teste de espaco.      Teste de tabulacao.';
+    writeln(Linha);
+    for i := 1 to Length(Linha) do
+        Buffer[i] := ord(Linha[i]);
+    readln;
+    for i := 1 to Length(Linha) do
+        write(chr(Buffer[i]));
+    writeln;
+    readln;
 	
 END.
 

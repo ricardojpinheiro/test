@@ -81,7 +81,7 @@ begin
 
     StringTest := '';
     writeln('Text: ', StringTest);
-    writeln('Reading it in the Mapper segment  ', SegmentId, '... ');
+    writeln('Reading it in the Mapper segment ', SegmentId, '... ');
 
     for i := addr(StringTest) to addr(StringTest) + sizeof(StringTest) do
         StringTest[i - addr(StringTest)] := chr(ReadMapperSegment(Mapper, SegmentId, i));

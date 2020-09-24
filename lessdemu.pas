@@ -91,6 +91,7 @@ var i, j, k, l, Page, MaxBlock, FirstSegment: integer;
     VDPSAV1: array[0..7]  of byte absolute $F3DF;
     VDPSAV2: array[8..23] of byte absolute $FFE7;
     TXTNAM : integer absolute $F3B3;
+    CRTCNT : byte absolute $F3B1;
 
 procedure ErrorCode (ExitOrNot: boolean);
 var
@@ -142,7 +143,7 @@ procedure SetExtendedScreen;
 begin
     OriginalRegister9Value := getVDP(9);
     SetVDP(9, OriginalRegister9Value + 128);
-    CallBas(32, $0C00, 0, 0, FILVRM);    
+    CallBas(32, $1000, 0, 0, FILVRM);
 end;
 
 procedure SetOriginalScreen;
@@ -150,6 +151,7 @@ begin
     TXTNAM := 0;
     CallBas (0, 0, 0, 0, INITXT);
     setVDP(9, OriginalRegister9Value);
+    CRTCNT := 24;
 end;
 
 Procedure ClrScr2;
@@ -240,7 +242,6 @@ begin
 
                 BufferIndex := 0;
                 PutMapperPage (Mapper, Segment + 1, 2);
-                NextSegment := true;
             end;
             
             case Buffer[BufferIndex] of
@@ -251,14 +252,15 @@ begin
             BufferIndex := BufferIndex + 1;
         end;
         EndOfPage[EndOfPageIndex] := BufferIndex - 1;
-        writeln('EndOfPage[',EndOfPageIndex - 1,']=',temporary, ' EndOfPage[',EndOfPageIndex,']=',EndOfPage[EndOfPageIndex]);
-    until (EndOfPage[EndOfPageIndex] < temporary);
-{    
-    EndOfPage[EndOfPageIndex] := Limit;
 
-     if NextSegment then
-        PageRemnant := EndOfPage[EndOfPageIndex];
-}
+        writeln('EndOfPage[',EndOfPageIndex-1,']=',temporary,' EndOfPage[',EndOfPageIndex,']=',EndOfPage[EndOfPageIndex]);
+    until (EndOfPage[EndOfPageIndex] < temporary);
+
+    if BufferIndex < EndOfPage[EndOfPageIndex - 1] then
+        EndOfPage[EndOfPageIndex] := BufferIndex - 1 + Limit;
+    
+    writeln('EndOfPage[',EndOfPageIndex,']=',temporary,' EndOfPage[',EndOfPageIndex,']=',EndOfPage[EndOfPageIndex]);
+    
     PreProcessing := EndOfPageIndex;
 end;
 
@@ -267,7 +269,9 @@ var
     i, j, temporary: integer;
     bch: byte;
 begin
-    
+{
+    clrscr2;
+}    
 { Aqui, joga da RAM pra VRAM. }
 
     k := 0;
@@ -285,18 +289,29 @@ begin
     if Page >= MaxTotalPagesPerSegment then
         temporary := temporary + Limit;
 {
+    gotoxy2(1, 3);
     writeln('-->', Segment,' ', Page, ' ', Beginning, ' ', Finish, ' ', temporary, ' ', MaxTotalPagesPerSegment);
     readln;
 }
-    while (k < SizeTextScreen) do
+    for i := Beginning to Finish do
     begin
         if i = Limit then
             PutMapperPage (Mapper, Segment + 1, 2);
         
         if i >= Limit then
-            bch := Buffer[i - Limit]
+        begin
+            bch := Buffer[i - Limit];
+{
+             gotoxy2 (1, 2); writeln('i - Limit: ', i - Limit);
+}
+        end
         else
+        begin
             bch := Buffer[i];
+{
+             gotoxy2 (1, 1); writeln('i: ', i);
+}
+        end;
           
         if bch in Print then
             ScreenBuffer[k] := chr(bch)
@@ -306,7 +321,6 @@ begin
                 13:             k := (((k div 80) + 1) * 80) - 2;
                 10, 127, 255:   k := k + 0;
             end;
-        i := i + 1;
         k := k + 1;
     end;
 
@@ -335,11 +349,13 @@ begin
 end;
 
 BEGIN
-    clrscr;
+    clrscr2;
     AllChars := [0..255];
     NoPrint := [0..31, 127, 255];
     Print := AllChars - NoPrint;
-    
+{    
+    SetExtendedScreen;
+}    
     writeln('Init Mapper? ', InitMapper(Mapper));
     PointerMapperVarTable := GetMapperVarTable(Mapper);
     writeln('Number of free segments: ', PointerMapperVarTable^.nFreeSegs);
