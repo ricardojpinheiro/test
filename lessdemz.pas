@@ -4,11 +4,19 @@
 
 program lessdemz;
 
+{$i d:types.inc}
+{$i d:msxbios.inc}
+{$i d:extbio.inc}
+{$i d:maprbase.inc}
+{$i d:maprvars.inc}
+{$i d:maprpage.inc}
+
 const
     Limit = 2047;
-    SizeScreen = 1839;
-    LinesScreen = 23;
-    PagesPerSegment = 16;
+    MaxCharsPerLine = 80;
+    MaxCharsPerScreen = 1840;
+    MaxLinesPerScreen = 23;
+    MaxPagesPerSegment = 8;
     
     WRTVDP = $0047;
     RDVRM  = $004A;
@@ -53,17 +61,18 @@ type
     ASCII = set of 0..255;
 
 var i, j, k, l: integer;
-    PageIndex, ScreenBufferIndex, BufferIndex, MapperPage: integer;
+    LineIndex, PageIndex, ScreenBufferIndex, BufferIndex, MapperPage: integer;
     bch: byte;
     
     MaxSize: real;
-    ScreenBuffer: array [1..8,0..Limit] of char absolute $8000; { Page 2 }
+    ScreenBuffer: array [1..MaxPagesPerSegment, 1..MaxCharsPerScreen] of byte absolute $8000; { Page 2 }
     B2FileHandle: file;
     TFileHandle: text;
     NoPrint, Print, AllChars: ASCII;
-{    
+
     Mapper: TMapperHandle;
     PointerMapperVarTable: PMapperVarTable;
+{
     TextFileName: TFileName;
 }
     TextFileName, Buffer: string[255];
@@ -76,7 +85,7 @@ var i, j, k, l: integer;
     TempString: TString;
     TempTinyString: string[5];
 }
-    TotalPages: integer;
+    TotalSegments: integer;
     VDPSAV1: array[0..7]  of byte absolute $F3DF;
     VDPSAV2: array[8..23] of byte absolute $FFE7;
     TXTNAM : integer absolute $F3B3;
@@ -102,11 +111,10 @@ BEGIN
     Print := AllChars - NoPrint;
 {    
     SetExtendedScreen;
-    
+}
     writeln('Init Mapper? ', InitMapper(Mapper));
     PointerMapperVarTable := GetMapperVarTable(Mapper);
     writeln('Number of free segments: ', PointerMapperVarTable^.nFreeSegs);
-}
     TextFileName := 'd:\services';
     writeln('Reading ', TextFileName, ' file...');
 
@@ -115,17 +123,27 @@ BEGIN
     assign(B2FileHandle, TextFileName);
     reset(B2FileHandle);
     MaxSize := (FileSize(B2FileHandle) * 128);
-    TotalPages := round(int(MaxSize / (SizeScreen + 1))) + 1;
+    TotalSegments := round(int(MaxSize / (MaxPagesPerSegment * MaxCharsPerScreen)));
     writeln('MaxSize = ', MaxSize:0:0, ' bytes.');
-    writeln('TotalPages = ', TotalPages);
+    writeln('TotalSegments = ', TotalSegments);
     close(B2FileHandle);
 
-{ Le arquivo 2a vez. }
+    EndOfFile := false;
+    LineIndex := 1;
+    ScreenBufferIndex := 1;
+    PageIndex := 1;
+    BufferIndex := 1;
+    MapperPage := 4;
+    PutMapperPage (Mapper, MapperPage, 2);
+    fillchar(ScreenBuffer, sizeof(ScreenBuffer), 32 );
+    writeln('FirstSegment: ', MapperPage);
+    writeln('LastSegment: ', MapperPage + TotalSegments);
 
+{ Le arquivo 2a vez. }
     assign(TFileHandle, TextFileName);
     reset(TFileHandle);
-    EndOfFile := false;
-    MapperPage := 4;
+
+    writeln('MapperPage: ', MapperPage);
         
     while not EndOfFile do
     begin
@@ -133,62 +151,71 @@ BEGIN
 {   Testa o fim do arquivo, seta o PageIndex em 1 e seta a página da Mapper. }
     
         EndOfFile := EOF(TFileHandle);
-        PageIndex := 1;
 
-        ScreenBufferIndex := 1;
-        
-        gotoxy(1, 4); writeln('MapperPage: ', MapperPage);
-        
-        while (PageIndex < LinesScreen) do
+{   Se o contador de linhas for maior do que o numero de linhas da tela... }
+
+        If LineIndex > MaxLinesPerScreen then
         begin
+
+writeln('Page: ', PageIndex);
+for j := 1 to MaxCharsPerScreen do
+    write(chr(ScreenBuffer[PageIndex, j]));
+    writeln;
+ch := readkey;
+
+{ Aumenta a contagem das paginas, reinicia o contador do ScreenBuffer e o numero de linhas. }
+
+            PageIndex := PageIndex + 1;
+            ScreenBufferIndex := 1;
+            LineIndex := 1;
+        end;
+        
+{   Se o contador de paginas for maior do que o numero de paginas por segmento... }        
+        
+        If PageIndex > MaxPagesPerSegment then
+        begin
+            MapperPage := MapperPage + 1;   { Incrementa o contador de segmentos da Mapper. }
+            PageIndex := 1;                 { Reinicia o contador de paginas na Mapper }
+            ScreenBufferIndex := 1;         { Reinicia o contador da variavel ScreenBuffer }
+            LineIndex := 1;                 { Reinicia o contador de linhas }
+            PutMapperPage (Mapper, MapperPage, 2);  { Rotina pra trocar de segmento na Mapper }
+            fillchar(ScreenBuffer, sizeof(ScreenBuffer), 32 ); { Limpa a variavel ScreenBuffer }
+            
+            writeln('MapperPage: ', MapperPage);
+            
+        end;
+
+{
+gotoxy(1, 4); writeln('MapperPage: ', MapperPage);
+gotoxy(1, 5); writeln('Buffer: ', length(Buffer), ' PageIndex: ', PageIndex, 
+                        ' ScreenBufferIndex: ', ScreenBufferIndex, '    ');
+gotoxy(1, 7); writeln(Buffer);
+ch := readkey;
+}
 
 {   Limpa a variável buffer e lê uma linha do arquivo. }
             
-            fillchar(Buffer, sizeof(Buffer), ' ' );
-            readln(TFileHandle, Buffer);
-
-            gotoxy(1, 5); writeln('PageIndex: ', PageIndex, ' Buffer: ', length(Buffer));
-            gotoxy(1, 6 + PageIndex); writeln(Buffer);
-            ch := readkey;
+        fillchar(Buffer, sizeof(Buffer), ' ' );
+        readln(TFileHandle, Buffer);
             
-            BufferIndex := 1;
+{   O programa vai jogar pra variável ScreenBuffer as linhas lidas. }
         
-{   Agora a mágica acontece: O programa vai jogar pra variável ScreenBuffer as linhas lidas. }
-        
-            for BufferIndex := 1 to Length(Buffer) do 
-            begin
-            
-                gotoxy (1, 6); writeln('BufferIndex: ', BufferIndex, ' ScreenBufferIndex: ', ScreenBufferIndex);
-            
-                bch := ord(Buffer[BufferIndex]);
-
-                case bch of
-                    9:  begin
-                            for j := ScreenBufferIndex to ScreenBufferIndex + 8 do
-                                ScreenBuffer[PageIndex, j] := chr(32);
-                            ScreenBufferIndex := j;
-                        end;
-                    13: begin
-                            for j := ScreenBufferIndex to (((ScreenBufferIndex div 80) + 1) * 80) - 2 do
-                                ScreenBuffer[PageIndex, j] := chr(32);
-                            ScreenBufferIndex := j;
-                        end;
-                    {
-                    10, 127, 255: ScreenBufferIndex := ScreenBufferIndex;
-                }
-                end;
-
-                if bch in Print then
-                    ScreenBuffer[PageIndex, ScreenBufferIndex] := chr(bch);
-                
-                ScreenBufferIndex := ScreenBufferIndex + 1;
-            end;
-            
-            PageIndex := PageIndex + 1;
+        for BufferIndex := 1 to Length(Buffer) do
+        begin
+            bch := ord(Buffer[BufferIndex]);
+            if bch = 9 then
+                ScreenBufferIndex := ScreenBufferIndex + 7
+            else
+                ScreenBuffer[PageIndex, ScreenBufferIndex] := bch;
+            ScreenBufferIndex := ScreenBufferIndex + 1;
         end;
-        
-        MapperPage := MapperPage + 1;
+        ScreenBufferIndex := MaxCharsPerLine * LineIndex;
+            
+{
+writeln('PageIndex: ', PageIndex, ' LineIndex: ', LineIndex, 
+        ' BufferIndex: ', BufferIndex, ' ScreenBufferIndex: ', ScreenBufferIndex);
+}
+        LineIndex := LineIndex + 1;
     end;
-    
     close(TFileHandle);
 END.
