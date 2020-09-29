@@ -374,7 +374,7 @@ BEGIN
     ch := #00;
     j := FirstSegment;
     Segment := 4;
-    Page := 14;
+    Page := 1;
     l := 1;
 
 { Limpa os blinks }

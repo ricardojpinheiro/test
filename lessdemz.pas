@@ -65,7 +65,7 @@ var i, j, k, l: integer;
     bch: byte;
     
     MaxSize: real;
-    ScreenBuffer: array [1..MaxPagesPerSegment, 1..MaxCharsPerScreen] of byte absolute $8000; { Page 2 }
+    ScreenBuffer: array [1..MaxPagesPerSegment, 1..MaxCharsPerScreen] of char absolute $8000; { Page 2 }
     B2FileHandle: file;
     TFileHandle: text;
     NoPrint, Print, AllChars: ASCII;
@@ -157,11 +157,13 @@ BEGIN
         If LineIndex > MaxLinesPerScreen then
         begin
 
+{
 writeln('Page: ', PageIndex);
 for j := 1 to MaxCharsPerScreen do
-    write(chr(ScreenBuffer[PageIndex, j]));
+    write(ScreenBuffer[PageIndex, j]);
     writeln;
 ch := readkey;
+}
 
 { Aumenta a contagem das paginas, reinicia o contador do ScreenBuffer e o numero de linhas. }
 
@@ -202,14 +204,13 @@ ch := readkey;
         
         for BufferIndex := 1 to Length(Buffer) do
         begin
-            bch := ord(Buffer[BufferIndex]);
-            if bch = 9 then
+            if Buffer[BufferIndex] = #9 then
                 ScreenBufferIndex := ScreenBufferIndex + 7
             else
-                ScreenBuffer[PageIndex, ScreenBufferIndex] := bch;
+                ScreenBuffer[PageIndex, ScreenBufferIndex] := Buffer[BufferIndex];
             ScreenBufferIndex := ScreenBufferIndex + 1;
         end;
-        ScreenBufferIndex := MaxCharsPerLine * LineIndex;
+        ScreenBufferIndex := (MaxCharsPerLine * LineIndex) + 1;
             
 {
 writeln('PageIndex: ', PageIndex, ' LineIndex: ', LineIndex, 

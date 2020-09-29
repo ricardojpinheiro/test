@@ -17,8 +17,8 @@ program lessdemo;
 {$i d:blink.inc}
 
 const
-    Limit = 16384;
-    SizeScreen = 1840;
+    Limit = 16336;
+    SizeScreen = 1919;
     SizeTextScreen = 1840;
     PagesPerSegment = 16;
     
@@ -66,7 +66,7 @@ type
 
 var i, j, k, l, Page, MaxBlock, FirstSegment: integer;
     MaxSize: real;
-    Buffer: array [0..Limit] of Byte absolute $8000; { Page 2 }
+    buffer: array [0..Limit] of Byte absolute $8000; { Page 2 }
     BFileHandle: byte;
     B2FileHandle: file;
     NoPrint, Print, AllChars: ASCII;
@@ -78,12 +78,10 @@ var i, j, k, l, Page, MaxBlock, FirstSegment: integer;
     NewPosition: integer;
     TextFileName: TFileName;
     ScreenBuffer: array[0..SizeScreen] of char;
-    Buffer2: array[0..SizeScreen] of byte absolute $C000; { Page 3 }
-    EndOfPage: array[0..PagesPerSegment] of integer;
+    EndOfPage: array[0..PagesPerSegment] of integer absolute $BFD0; { Page 2 }
     PageRemnant: integer;
     OriginalRegister9Value: byte;
     ch, sch: char;
-    NextSegment: boolean;
 
     TempString: TString;
     TempTinyString: string[5];
@@ -91,7 +89,6 @@ var i, j, k, l, Page, MaxBlock, FirstSegment: integer;
     VDPSAV1: array[0..7]  of byte absolute $F3DF;
     VDPSAV2: array[8..23] of byte absolute $FFE7;
     TXTNAM : integer absolute $F3B3;
-    CRTCNT : byte absolute $F3B1;
 
 procedure ErrorCode (ExitOrNot: boolean);
 var
@@ -143,7 +140,7 @@ procedure SetExtendedScreen;
 begin
     OriginalRegister9Value := getVDP(9);
     SetVDP(9, OriginalRegister9Value + 128);
-    CallBas(32, $1000, 0, 0, FILVRM);
+    CallBas(32, $0C00, 0, 0, FILVRM);    
 end;
 
 procedure SetOriginalScreen;
@@ -151,7 +148,6 @@ begin
     TXTNAM := 0;
     CallBas (0, 0, 0, 0, INITXT);
     setVDP(9, OriginalRegister9Value);
-    CRTCNT := 24;
 end;
 
 Procedure ClrScr2;
@@ -202,6 +198,7 @@ end;
 function PreProcessing (Segment: Byte): byte;
 var 
     EndOfPageIndex, BufferIndex, ScreenBufferIndex, temporary: integer;
+    NextSegment: boolean;
 begin
     
 { A função dessa rotina de pre-processamento é localizar onde começa e onde
@@ -242,90 +239,68 @@ begin
 
                 BufferIndex := 0;
                 PutMapperPage (Mapper, Segment + 1, 2);
+                NextSegment := true;
             end;
             
             case Buffer[BufferIndex] of
-                9:      ScreenBufferIndex := ScreenBufferIndex + 8;
-                13:     ScreenBufferIndex := (((ScreenBufferIndex div 80) + 1) * 80) - 2;
-                else    ScreenBufferIndex := ScreenBufferIndex + 1;
+                9:              ScreenBufferIndex := ScreenBufferIndex + 8;
+                13:             ScreenBufferIndex := (((ScreenBufferIndex div 80) + 1) * 80) - 2;
+                else            ScreenBufferIndex := ScreenBufferIndex + 1;
             end;
             BufferIndex := BufferIndex + 1;
         end;
         EndOfPage[EndOfPageIndex] := BufferIndex - 1;
-
-        writeln('EndOfPage[',EndOfPageIndex-1,']=',temporary,' EndOfPage[',EndOfPageIndex,']=',EndOfPage[EndOfPageIndex]);
+        writeln('EndOfPage[',EndOfPageIndex - 1,']=',temporary, ' EndOfPage[',EndOfPageIndex,']=',EndOfPage[EndOfPageIndex]);
     until (EndOfPage[EndOfPageIndex] < temporary);
-
-    if BufferIndex < EndOfPage[EndOfPageIndex - 1] then
-        EndOfPage[EndOfPageIndex] := BufferIndex - 1 + Limit;
     
-    writeln('EndOfPage[',EndOfPageIndex,']=',temporary,' EndOfPage[',EndOfPageIndex,']=',EndOfPage[EndOfPageIndex]);
-    
+    EndOfPage[EndOfPageIndex] := Limit;
+{
+     if NextSegment then
+        PageRemnant := EndOfPage[EndOfPageIndex];
+}
     PreProcessing := EndOfPageIndex;
 end;
 
-procedure FromRAMToVRAM (Segment, Beginning, Finish: integer; Page, MaxTotalPagesPerSegment: byte);
+procedure FromRAMToVRAM (Segment: integer; Page, MaxTotalPagesPerSegment: byte);
 var 
     i, j, temporary: integer;
-    bch: byte;
+    
 begin
-{
-    clrscr2;
-}    
+    
 { Aqui, joga da RAM pra VRAM. }
 
-    k := 0;
-    NextSegment := false;
-
     PutMapperPage (Mapper, Segment, 2);
-    i := Beginning;
+    i := EndOfPage[Page - 1];
 
     if Page > 1 then
         i := i - 2;
+    k := 0;
 
     fillchar(ScreenBuffer, sizeof(ScreenBuffer), ' ');
-    temporary := Finish;
+    temporary := EndOfPage[Page];
+    if Page = MaxTotalPagesPerSegment - 1 then
+        temporary := Limit;
 
-    if Page >= MaxTotalPagesPerSegment then
-        temporary := temporary + Limit;
-{
-    gotoxy2(1, 3);
-    writeln('-->', Segment,' ', Page, ' ', Beginning, ' ', Finish, ' ', temporary, ' ', MaxTotalPagesPerSegment);
-    readln;
-}
-    for i := Beginning to Finish do
+    while (k < SizeTextScreen) and (i < temporary) do
     begin
-        if i = Limit then
-            PutMapperPage (Mapper, Segment + 1, 2);
-        
         if i >= Limit then
         begin
-            bch := Buffer[i - Limit];
-{
-             gotoxy2 (1, 2); writeln('i - Limit: ', i - Limit);
-}
-        end
-        else
-        begin
-            bch := Buffer[i];
-{
-             gotoxy2 (1, 1); writeln('i: ', i);
-}
+            i := 0;
+            PutMapperPage (Mapper, Segment + 1, 2);
+            temporary := EndOfPage[Page + 1];
         end;
-          
-        if bch in Print then
-            ScreenBuffer[k] := chr(bch)
+        if Buffer[i] in Print then
+            ScreenBuffer[k] := chr(Buffer[i])
         else
-            case bch of
+            case Buffer[i] of
                 9:              k := k + 8;
                 13:             k := (((k div 80) + 1) * 80) - 2;
                 10, 127, 255:   k := k + 0;
             end;
+        i := i + 1;
         k := k + 1;
     end;
-
     WriteVRAM (0, $0000, addr(ScreenBuffer), $0730);
-
 end;
 
 procedure SetLastLine (TextFileName: TFileName; PagePerDocument, TotalPages, Line: integer);
@@ -349,13 +324,11 @@ begin
 end;
 
 BEGIN
-    clrscr2;
+    clrscr;
     AllChars := [0..255];
     NoPrint := [0..31, 127, 255];
     Print := AllChars - NoPrint;
-{    
-    SetExtendedScreen;
-}    
+    
     writeln('Init Mapper? ', InitMapper(Mapper));
     PointerMapperVarTable := GetMapperVarTable(Mapper);
     writeln('Number of free segments: ', PointerMapperVarTable^.nFreeSegs);
@@ -411,12 +384,14 @@ BEGIN
     SetBlinkRate(1, 0);
 
     MaxTotalPagesPerSegment := PreProcessing (Segment);
+    LastSegment := Segment;
+    
     readln;
     
     while ch <> ESC do
     begin
         NextPage := false;
-        FromRAMToVRAM (Segment, EndOfPage[Page - 1], EndOfPage[Page], Page, MaxTotalPagesPerSegment);
+        FromRAMToVRAM (Segment, Page, MaxTotalPagesPerSegment);
         
 { Faz todo o trabalho para colocar informacao na ultima linha. }
         blink (1, l, 80);
@@ -471,7 +446,7 @@ BEGIN
             end;
             if Page < 1 then Page := 1;
             if Page > TotalPages then Page := TotalPages;
-            if Page > MaxTotalPagesPerSegment then
+            if Page >= MaxTotalPagesPerSegment then
             begin
                 Page := 1;
                 Segment := Segment + 1;
