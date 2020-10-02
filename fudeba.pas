@@ -32,18 +32,18 @@ program fudeba;
 {$i d:fastwrit.inc}
 
 const
-    tamanho = 1840;
-    tamanhoreal = 3680;
+    tamanho = 1920;
+    tamanhoreal = 3840;
 
 type
     ASCII = set of 0..255;
 
 var 
     arq : byte;
-    i, j, k, retorno: integer;
+    i, j, k, l, m, retorno: integer;
     resultado, fechou: boolean;
     nomearquivo: TFileName;
-    vetor : Array[0..tamanho] Of byte;
+    vetor : Array[0..tamanhoreal] of byte;
     tela : Array[0..tamanhoreal] of char;
     NoPrint, Print, AllChars: ASCII;
     dpb: TDPB;
@@ -80,22 +80,23 @@ BEGIN
     end;
 
     readln;
-    clrscr;
-
-    writeln('Abriu: ',arq);
-    writeln;
-
     fillchar(vetor, sizeof(vetor), ' ' );
     fillchar(tela, sizeof(tela), ' ' );
 
+for l := 1 to 10 do
+begin
 {
-    resultado := FileSeek(arq, 0, CtSeekSet, retorno);
+    resultado := FileSeek(arq, tamanho, CtSeekSet, retorno);
+
+    for m := 1 to l + 1 do
+        resultado := FileSeek(arq, tamanho, ctSeekCur, retorno);
 }
     i := FileBlockRead(arq, vetor, tamanho);
-    writeln(' 1 ', resultado, '  ', i);
+    
     i := 0;
     j := 0;
     k := 0;
+    
     while j < 24 do
     begin
         if vetor[i] in Print then
@@ -112,45 +113,16 @@ BEGIN
         i := i + 1;
         k := k + 1;
     end;
-{
-    for i := 0 to tamanho do
-        write(tela[i]);
-}
-    readln;
+
     WriteVRAM (0, $0000, addr(tela), $0780);
+
     readln;
     
-    writeln ('i: ', i, ' j: ', j, ' k: ', k);
-    halt;
-
-    fillchar(vetor, sizeof(vetor), ' ' );
     clrscr;
-    resultado := FileSeek(arq, 2 * dpb.BytesPerSector, CtSeekSet, retorno);
-    i := FileBlockRead(arq, vetor, tamanho);
-    writeln(' 2 ', resultado, '  ', i);
-    for i := 0 to tamanho do
-        tela[i] := chr(vetor[i]);
-{
-    for i := 0 to tamanho do
-        write(tela[i]);
-}
-    WriteVRAM (0, $0000, addr(tela), $0730);
+    writeln ('i: ', i, ' j: ', j, ' k: ', k, ' l: ', l);
     readln;
-
-    fillchar(vetor, sizeof(vetor), ' ' );
-    clrscr;
-    resultado := FileSeek(arq, 3 * dpb.BytesPerSector, CtSeekSet, retorno);
-    i := FileBlockRead(arq, vetor, tamanho);
-    writeln(' 3 ', resultado, '  ', i);
-    for i := 0 to tamanho do
-        tela[i] := chr(vetor[i]);
-{
-    for i := 0 to tamanho do
-        write(tela[i]);
-}
-    WriteVRAM (0, $0000, addr(tela), $0730);
-    readln;
-    
+end;
+  
     fechou := FileClose(arq);
 	writeln('Fechou');
 	

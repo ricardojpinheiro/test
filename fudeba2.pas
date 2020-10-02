@@ -1,5 +1,5 @@
 {
-   fudeba2.pas
+   fudeba.pas
    
    Copyright 2020 Ricardo Jurczyk Pinheiro <ricardo@aragorn>
    
@@ -22,35 +22,63 @@
 }
 
 
-program fudeba2;
+program fudeba;
 
 {$i d:memory.inc}
 {$i d:types.inc}
 {$i d:dos.inc}
 {$i d:dos2file.inc}
 {$i d:dpb.inc}
+{$i d:msxbios.inc}
+{$i d:extbio.inc}
+{$i d:fastwrit.inc}
+{$i d:maprbase.inc}
+{$i d:maprvars.inc}
+{$i d:maprpage.inc}
 
 const
-    tamanho = 16384;
+    tamanho = 1920;
+    tamanhoreal = 3840;
+    tabulacao = #9;
+type
+    ASCII = set of 0..255;
 
 var 
-    arq: file;
-    i : byte;
-    inicio, fim: integer;
-    retorno, j : integer;
+    arq : text;
+    Mapper: TMapperHandle;
+    PointerMapperVarTable: PMapperVarTable;
+    i, j, k, l, m, retorno: integer;
     resultado, fechou: boolean;
     nomearquivo: TFileName;
-    vetor : Array[1..tamanho] Of byte; 
-(*    vetor : string[tamanho];  *)
-(**)
-        dpb: TDPB;
-        nDrive: Byte;
-    
+    vetor : Array[1..64] of string[255] absolute $8000; { Page 2 }
+    temporario: string[255];
+    NoPrint, Print, AllChars: ASCII;
+    dpb: TDPB;
+    nDrive: Byte;
+
+Procedure GotoXY2( nPosX, nPosY : Byte );
+Var
+       CSRY : Byte Absolute $F3DC; { Current row-position of the cursor    }
+       CSRX : Byte Absolute $F3DD; { Current column-position of the cursor }
+Begin
+  CSRX := nPosX;
+  CSRY := nPosY;
+End;
+   
 BEGIN
+    AllChars := [0..255];
+    NoPrint := [0..31, 127, 255];
+    Print := AllChars - NoPrint;
+
+    writeln('Init Mapper? ', InitMapper(Mapper));
+    PointerMapperVarTable := GetMapperVarTable(Mapper);
+    writeln('Number of free segments: ', PointerMapperVarTable^.nFreeSegs);
+    writeln('Reading services file...');
+
     nomearquivo := 'd:services';
     assign(arq, nomearquivo);
     reset(arq);
-    
+
     nDrive := 0;
     if (GetDPB(nDrive, dpb) = ctError ) then
     begin
@@ -74,44 +102,42 @@ BEGIN
     end;
 
     readln;
-    clrscr;
-
-    writeln('Abriu: ');
-    writeln('Filesize: ', FileSize(arq));
-    writeln('Filepos: ', FilePos(arq));
-
     fillchar(vetor, sizeof(vetor), ' ' );
-
-    Seek(arq, 0);
-    BlockRead(arq, vetor, 8, i);
-    writeln(' 1 ', resultado, '  ', i);
-    for i := 0 to 512 do
-        write(chr(vetor[i]));
-
-    readln;
-
-    fillchar(vetor, sizeof(vetor), ' ' );
+{    
+    fillchar(tabulacao, sizeof(tabulacao), chr(32));
+}
     clrscr;
-    Seek(arq, 1);
-    BlockRead(arq, vetor, 8, i);
-    writeln(' 2 ', resultado, '  ', i);
-    for i := 0 to 512 do
-        write(chr(vetor[i]));
+    i := 4;
+{
+while not eof(arq) do
+begin
+}
+    PutMapperPage(Mapper, i, 2);
+    for l := 1 to 24 do
+    begin
+        fillchar(temporario, sizeof(temporario), ' ' );
+        readln(arq, temporario);
+        j := Pos (tabulacao, temporario);
+        delete (temporario, j, 1);
+        insert('        ', temporario, j);
+        vetor[l] := concat(temporario);
+{
+        gotoxy (1, 1); writeln('Mapper page: ', i, ' Line: ', l);
+}
+    end;
+    i := i + 1;
+{
+end;
+}
+for l := 1 to 24 do
+begin
+    gotoxy2(1, l);
+    writeln(vetor[l]);
+end;
 
-    readln;
 
-    fillchar(vetor, sizeof(vetor), ' ' );
-    clrscr;
-    Seek(arq, 2);
-    BlockRead(arq, vetor, 8, i);
-    writeln(' 3 ', resultado, '  ', i);
-    for i := 0 to 512 do
-        write(chr(vetor[i]));
+close(arq);
 
-    readln;
-    
-    Close(arq);
 	writeln('Fechou');
-	
 END.
 

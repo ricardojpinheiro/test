@@ -218,9 +218,9 @@ begin
     EndOfPageIndex  := 0;
     BufferIndex     := 0;
     NextSegment     := false;
-    
+{    
     writeln('EndOfPage[',EndOfPageIndex,']=',EndOfPage[EndOfPageIndex]);
-
+}
 { Repete até que o EndofPage[EndOfPageIndex - 1] seja maior do que o EndOfPage[EndOfPageIndex] }
 
     repeat
@@ -250,7 +250,9 @@ begin
             BufferIndex := BufferIndex + 1;
         end;
         EndOfPage[EndOfPageIndex] := BufferIndex - 1;
-        writeln('EndOfPage[',EndOfPageIndex - 1,']=',temporary, ' EndOfPage[',EndOfPageIndex,']=',EndOfPage[EndOfPageIndex]);
+{
+       writeln('EndOfPage[',EndOfPageIndex - 1,']=',temporary, ' EndOfPage[',EndOfPageIndex,']=',EndOfPage[EndOfPageIndex]);
+}
     until (EndOfPage[EndOfPageIndex] < temporary);
     
     EndOfPage[EndOfPageIndex] := Limit;
