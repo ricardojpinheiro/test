@@ -20,7 +20,6 @@ Const
     ctGetPreviousErrorCode          = $65;
     ctExplainErrorCode              = $66;
 	ctGetEnvironmentItem            = $6B;
-	ctSetEnvironmentItem            = $6C;
 	ctGetMSXDOSVersionNumber        = $6F;
 
 Type TMSXDOSVersion = Record
