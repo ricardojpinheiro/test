@@ -37,8 +37,8 @@ program fudeba;
 {$i d:maprpage.inc}
 
 const
-    tamanhoreal = 3840;
     tabulacao = #9;
+
 type
     ASCII = set of 0..255;
 
@@ -50,7 +50,8 @@ var
     posicaoinicial, posicaofinal, comprimento: byte;
     resultado, fechou: boolean;
     nomearquivo: TFileName;
-    tela : Array[1..192] of string[80] absolute $8000; { Page 2 }
+    buffer : Array[1..192] of string[80] absolute $8000; { Page 2 }
+    tela: array[1..1920] of char;
     temporario: string[255];
     NoPrint, Print, AllChars: ASCII;
     dpb: TDPB;
@@ -139,14 +140,14 @@ begin
 for i := 4 to 5 do
 begin
     PutMapperPage(Mapper, i, 2);
-    fillchar(tela, sizeof(tela), ' ' );
+    fillchar(buffer, sizeof(buffer), ' ' );
     l := 1;
     gotoxy (1, 1); writeln(' Mapper page: ', i);
     
-{ Problema aqui... O critério de parada é quando tiver 192 linhas (24 linhas x 8 telas)
+{ Problema aqui... O critério de parada é quando tiver 192 linhas (24 linhas x 8 buffers)
 * salvas. O problema é que é bem possível que a 192a linha tenha mais do que 80 colunas,
 * então esse "resto" tem que ir para o próximo segmento, começando a preencher a variável
-* tela do segmento seguinte... }
+* buffer do segmento seguinte... }
     
     while l < 192 do
     begin
@@ -179,9 +180,9 @@ begin
         comprimento := (length(temporario) div 80) + 1;
         for k := 1 to comprimento do
         begin
-            tela[l] := copy(temporario, posicaoinicial, posicaofinal);
+            buffer[l] := copy(temporario, posicaoinicial, posicaofinal);
     {
-            delete(tela[l], posicaofinal - 2, 2);
+            delete(buffer[l], posicaofinal - 2, 2);
     }
             posicaoinicial := posicaofinal + 1;
             posicaofinal   := posicaofinal * (l + 1);
@@ -209,18 +210,15 @@ begin
 * depois e vou usando writeln por enquanto. WriteVRAM seria a solução ideal,
 * mas aí teria que renderizar de novo, pra outra variável. 
 }
-    
+        fillchar(tela, sizeof(tela), ' ');
         for l := 1 to 24 do
-        begin
-            gotoxy2(1, l);
-            write(tela[l + 24 * (i - 1)]);
-        end;
+            for m := 1 to 80 do
+                tela[m + (80 * (l - 1))] := buffer[l + 24 * (i - 1)][m];
+
+        WriteVRAM (0, $0000, addr(tela), $0780);
 
         gotoxy2 (54, 1); writeln ('Mapper page: ', j, ' Pagina ', i);
         i := i + 1;
-{
-     WriteVRAM (0, $0000, addr(tela[24 * (i - 1)]), $0730);
-}
         readln;
     end;
 end;

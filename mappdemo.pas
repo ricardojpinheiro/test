@@ -17,10 +17,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
    MA 02110-1301, USA.
-   
-   
 }
-
 
 program mappdemo;
 
@@ -102,8 +99,7 @@ begin
     writeln('More MAPRPAGE:');
     writeln('Putting a specified mapper segment to page 2. Let me see...');
     j := random(Mapper.nTotalMapperSegs - 3);
-    writeln('It would be segment number ', j);
-    writeln('So, let''s do it!');
+    writeln('It would be segment number ', j, '. So, let''s do it!');
     PutMapperPage (Mapper, j, 2);
     writeln('Generating rubbish in the Buffer array...');
     randomize;
@@ -114,8 +110,7 @@ begin
         write(chr(Buffer[i]));
     writeln('Now, we''ll change to another segment...');
     l := random(Mapper.nTotalMapperSegs - 3);
-    writeln('It would be segment number ', l);
-    writeln('So, let''s do it!');
+    writeln('It would be segment number ', l, '. So, let''s do it!');
     PutMapperPage (Mapper, l, 2);
     writeln('Is there anything in the Buffer array now?');
     for i := 0 to Limit do

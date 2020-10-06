@@ -37,8 +37,8 @@ program fudeba;
 {$i d:maprpage.inc}
 
 const
-    tamanhoreal = 3840;
     tabulacao = #9;
+
 type
     ASCII = set of 0..255;
 
@@ -50,7 +50,7 @@ var
     posicaoinicial, posicaofinal, comprimento: byte;
     resultado, fechou: boolean;
     nomearquivo: TFileName;
-    tela : Array[1..192] of string[80] absolute $8000; { Page 2 }
+    buffer : Array[1..192,1..80] of char absolute $8000; { Page 2 }
     temporario: string[255];
     NoPrint, Print, AllChars: ASCII;
     dpb: TDPB;
@@ -132,98 +132,87 @@ BEGIN
     i := 4;
     j := 1;
 {
-while not eof(arq) do
-begin
-    i := 4;
-}
-for i := 4 to 5 do
-begin
-    PutMapperPage(Mapper, i, 2);
-    fillchar(tela, sizeof(tela), ' ' );
-    l := 1;
-    gotoxy (1, 1); writeln(' Mapper page: ', i);
+    while not eof(arq) do
+    begin
+        i := 4;
+    }
+    for i := 4 to 6 do
+    begin
+        PutMapperPage(Mapper, i, 2);
+        fillchar(buffer, sizeof(buffer), ' ' );
+        l := 1;
+        gotoxy (1, 1); writeln(' Mapper page: ', i);
     
-{ Problema aqui... O critério de parada é quando tiver 192 linhas (24 linhas x 8 telas)
+{ Problema aqui... O critério de parada é quando tiver 192 linhas (24 linhas x 8 buffers)
 * salvas. O problema é que é bem possível que a 192a linha tenha mais do que 80 colunas,
 * então esse "resto" tem que ir para o próximo segmento, começando a preencher a variável
-* tela do segmento seguinte... }
+* buffer do segmento seguinte... }
     
-    while l < 192 do
-    begin
-        fillchar(temporario, sizeof(temporario), ' ' );
-        readln(arq, temporario);
-        gotoxy(1, 3); writeln(temporario);
+        while l < 192 do
+        begin
+            fillchar(temporario, sizeof(temporario), ' ' );
+            readln(arq, temporario);
         
 { Tem q verificar se ele tá identificando apenas uma tabulação. Tem que ser capaz
 * de identificar mais de uma. }
         
-        repeat
-            j := pos (tabulacao, temporario);
-            if j <> 0 then 
-            begin
-                delete (temporario, j, 1);
-                insert('    ', temporario, j);
-            end;
-        until j = 0;
-        
-        j := length(temporario);
-        posicaoinicial := 1;
+            repeat
+                j := pos (tabulacao, temporario);
+                if j <> 0 then 
+                begin
+                    delete (temporario, j, 1);
+                    insert('    ', temporario, j);
+                end;
+            until j = 0;
+            
+            j := length(temporario);
+            posicaoinicial := 1;
 
 { Se a linha tiver mais do que 80 caracteres, pára nos primeiros 80 e segue abaixo }
         
-        if j >= 80 then
-            posicaofinal := 80
-        else
-            posicaofinal := j;
-            
-        comprimento := (length(temporario) div 80) + 1;
-        for k := 1 to comprimento do
-        begin
-            tela[l] := copy(temporario, posicaoinicial, posicaofinal);
-    {
-            delete(tela[l], posicaofinal - 2, 2);
-    }
-            posicaoinicial := posicaofinal + 1;
-            posicaofinal   := posicaofinal * (l + 1);
-            if posicaofinal > j then
+            if j >= 80 then
+                posicaofinal := 80
+            else
                 posicaofinal := j;
-            l := l + 1;
+                
+            comprimento := (length(temporario) div 80) + 1;
+
+            for k := 1 to comprimento do
+            begin
+                n := 1;
+                for m := posicaoinicial to posicaofinal do
+                begin
+                    buffer[l, n] := temporario[m];
+                    n := n + 1;
+                end;
+        {
+                delete(buffer[l], posicaofinal - 2, 2);
+        }
+                posicaoinicial := posicaofinal + 1;
+                posicaofinal   := posicaofinal * (comprimento + 1);
+                if posicaofinal > j then
+                    posicaofinal := j;
+                l := l + 1;
+            end;
         end;
     end;
-end;
 
 writeln('Salvo. Agora vamos ver a leitura.');
 readln;
 
-for j := 4 to 5 do
-begin
-    i := 1;
-    PutMapperPage(Mapper, j, 2);
-
-    while i <= 8 do
+    for j := 4 to 6 do
     begin
-        clrscr2;
-    
-{ Funciona muito bem, mas se eu usar o fastwrite com o conteúdo das
-* páginas 5 em diante, sabe-se lá pq dá ruim, fica tudo k-gado. Vou ver
-* depois e vou usando writeln por enquanto. WriteVRAM seria a solução ideal,
-* mas aí teria que renderizar de novo, pra outra variável. 
-}
-    
-        for l := 1 to 24 do
+        i := 1;
+        PutMapperPage(Mapper, j, 2);
+        while i <= 8 do
         begin
-            gotoxy2(1, l);
-            write(tela[l + 24 * (i - 1)]);
+            clrscr2;
+            WriteVRAM (0, $0000, addr(buffer[24 * (i - 1) + 1]), $0780);
+            gotoxy2 (54, 1); writeln ('Mapper page: ', j, ' Pagina ', i);
+            i := i + 1;
+            readln;
         end;
-
-        gotoxy2 (54, 1); writeln ('Mapper page: ', j, ' Pagina ', i);
-        i := i + 1;
-{
-     WriteVRAM (0, $0000, addr(tela[24 * (i - 1)]), $0730);
-}
-        readln;
     end;
-end;
 
 close(arq);
 
