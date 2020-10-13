@@ -17,10 +17,13 @@ program lessdemo;
 {$i d:blink.inc}
 
 const
-    Limit = 16336;
-    SizeScreen = 1919;
-    SizeTextScreen = 1840;
-    PagesPerSegment = 16;
+    Limit = 15360;
+    LinesPerSegment = 204;
+    ReadLinesPerSegment = 192;
+    PagesPerSegment = 8;
+    FirstSegment = 4;
+    SizeScreen = 1840;
+    WidthScreen = 80;
     
     WRTVDP = $0047;
     RDVRM  = $004A;
@@ -64,28 +67,22 @@ const
 type
     ASCII = set of 0..255;
 
-var i, j, k, l, Page, MaxBlock, FirstSegment: integer;
+var i, j, k, l, m, n, Page, TotalPages: integer;
+    TotalSegments: integer;
     MaxSize: real;
-    buffer: array [0..Limit] of Byte absolute $8000; { Page 2 }
-    BFileHandle: byte;
+    buffer : Array[1..LinesPerSegment,1..WidthScreen] of char absolute $8000; { Page 2 }
+    BFileHandle: text;
     B2FileHandle: file;
     NoPrint, Print, AllChars: ASCII;
     
     Mapper: TMapperHandle;
     PointerMapperVarTable: PMapperVarTable;
-    NextPage, SeekResult, CloseResult: boolean;
-    BlockReadResult, Position: byte;
-    NewPosition: integer;
-    TextFileName: TFileName;
-    ScreenBuffer: array[0..SizeScreen] of char;
-    EndOfPage: array[0..PagesPerSegment] of integer absolute $BFD0; { Page 2 }
-    PageRemnant: integer;
-    OriginalRegister9Value: byte;
-    ch, sch: char;
-
+    NextPage, CloseResult: boolean;
     TempString: TString;
-    TempTinyString: string[5];
-    MaxTotalPagesPerSegment, LastSegment, Segment, TotalPages: integer;
+    TextFileName: TFileName;
+    OriginalRegister9Value: byte;
+    ch: char;
+
     VDPSAV1: array[0..7]  of byte absolute $F3DF;
     VDPSAV2: array[8..23] of byte absolute $FFE7;
     TXTNAM : integer absolute $F3B3;
@@ -107,18 +104,6 @@ Procedure FillVRAM (VRAMaddress: Integer; NumberOfBytes: Integer;Value: Byte);
 begin
     inline ($DD/$21/$6B/$01/
             $ED/$4B/NumberOfBytes/$2A/VRAMaddress/$3A/Value/$C3/_CALROM);
-end;
-
-Function Vpeek (VRAMaddress: Integer): Byte;
-begin
-    inline($DD/$21/$74/$01/
-           $2A/VRAMaddress/$CD/_CALROM/$6F/$26/$00/$C9);
-end;
-
-procedure Vpoke (VRAMaddress: Integer;Value: Byte);
-begin
-    inline($DD/$21/$77/$01/
-            $2A/VRAMaddress/$3A/Value/$C3/_CALROM);
 end;
 
 Procedure CallBas(AC: byte; BC, DE, HL, IX: integer);
@@ -195,119 +180,86 @@ begin
      qqc := 0;
 end;
 
-function PreProcessing (Segment: Byte): byte;
-var 
-    EndOfPageIndex, BufferIndex, ScreenBufferIndex, temporary: integer;
-    NextSegment: boolean;
+procedure ReadBitOfFileIntoMapper (Segment: byte);
+const
+    TABChar = #9;
+var
+    i, j, k, l, m: byte;
+    LengthString, InitialPosition, FinalPosition: byte;
+    TempString: TString;
+    TempTinyString: String[8];
+
 begin
+    i := 0;
     
-{ A função dessa rotina de pre-processamento é localizar onde começa e onde
-  termina cada página, dentro do segmento de memoria acessado. A ideia é
-  salvar no vetor EndOfPage (q está travado na posição $BFD0 (página 2),
-  então em cada segmento da Mapper, teremos o bloco de texto + o vetor
-  EndOfPage daquele bloco, pra n ter q refazer o pré-processamento de tudo.
-  O problema é o texto "quebrado", em que parte começa em uma página e termina
-  em outra. Aí o vetor EndOfPage tem que ter a informação da página seguinte 
-  também.
-  }
-
-{ Inicializa variáveis e seta o segmento da Mapper na página 2 }
-
-    PutMapperPage (Mapper, Segment, 2);
-    EndOfPage[0]    := 0;
-    EndOfPageIndex  := 0;
-    BufferIndex     := 0;
-    NextSegment     := false;
+    gotoxy(20, 5); writeln('Segment: ', Segment, ' FirstSegment + TotalSegments: ', FirstSegment + TotalSegments);
     
-    writeln('EndOfPage[',EndOfPageIndex,']=',EndOfPage[EndOfPageIndex]);
-
-{ Repete até que o EndofPage[EndOfPageIndex - 1] seja maior do que o EndOfPage[EndOfPageIndex] }
-
-    repeat
-        EndOfPageIndex := EndOfPageIndex + 1;
-        ScreenBufferIndex := 0;
-        temporary := EndOfPage[EndOfPageIndex - 1];
-
-        while (ScreenBufferIndex < SizeTextScreen) do
-        begin
-            if BufferIndex >= Limit then
-            begin
-
-{ Se o i for maior do que Limit, significa que o texto está quebrado.
-  Logo, é preciso pegar o resto na página seguinte. A flag NextSegment
-  marca a necessidade de pegar o dado no segmento seguinte. } 
-
-                BufferIndex := 0;
-                PutMapperPage (Mapper, Segment + 1, 2);
-                NextSegment := true;
-            end;
-            
-            case Buffer[BufferIndex] of
-                9:              ScreenBufferIndex := ScreenBufferIndex + 8;
-                13:             ScreenBufferIndex := (((ScreenBufferIndex div 80) + 1) * 80) - 2;
-                else            ScreenBufferIndex := ScreenBufferIndex + 1;
-            end;
-            BufferIndex := BufferIndex + 1;
-        end;
-        EndOfPage[EndOfPageIndex] := BufferIndex - 1;
-        writeln('EndOfPage[',EndOfPageIndex - 1,']=',temporary, ' EndOfPage[',EndOfPageIndex,']=',EndOfPage[EndOfPageIndex]);
-    until (EndOfPage[EndOfPageIndex] < temporary);
+    fillchar(Buffer, sizeof (Buffer), ' ' );
+    TempTinyString := '        ';
+    PutMapperPage(Mapper, Segment, 2);
     
-    EndOfPage[EndOfPageIndex] := Limit;
-{
-     if NextSegment then
-        PageRemnant := EndOfPage[EndOfPageIndex];
-}
-    PreProcessing := EndOfPageIndex;
-end;
-
-procedure FromRAMToVRAM (Segment: integer; Page, MaxTotalPagesPerSegment: byte);
-var 
-    i, j, temporary: integer;
-    
-begin
-    
-{ Aqui, joga da RAM pra VRAM. }
-
-    PutMapperPage (Mapper, Segment, 2);
-    i := EndOfPage[Page - 1];
-
-    if Page > 1 then
-        i := i - 2;
-    k := 0;
-
-    fillchar(ScreenBuffer, sizeof(ScreenBuffer), ' ');
-    temporary := EndOfPage[Page];
-    if Page = MaxTotalPagesPerSegment - 1 then
-        temporary := Limit;
-
-    while (k < SizeTextScreen) and (i < temporary) do
+    while i < ReadLinesPerSegment do
     begin
-        if i >= Limit then
-        begin
-            i := 0;
-            PutMapperPage (Mapper, Segment + 1, 2);
-            temporary := EndOfPage[Page + 1];
-        end;
-        if Buffer[i] in Print then
-            ScreenBuffer[k] := chr(Buffer[i])
-        else
-            case Buffer[i] of
-                9:              k := k + 8;
-                13:             k := (((k div 80) + 1) * 80) - 2;
-                10, 127, 255:   k := k + 0;
+        fillchar(TempString, sizeof(TempString), ' ' );
+        readln(BFileHandle, TempString);
+
+{   Test if there is any TAB. Should be able to identify all of them. }
+
+        repeat
+            j := Pos (TABChar, TempString);
+            if j <> 0 then 
+            begin
+                delete (TempString, j, 1);
+                insert(TempTinyString, TempString, j);
             end;
-        i := i + 1;
-        k := k + 1;
+        until j = 0;
+        
+        j := length(TempString);
+        InitialPosition := 1;
+        
+{   Test if the line has more than 80 characters. If yes, it'ld stop in the first
+*   80 and goes on. }        
+        
+        if j >= WidthScreen then
+            FinalPosition := WidthScreen
+        else
+            FinalPosition := j;
+       
+        LengthString := (length(TempString) div WidthScreen) + 1;
+        
+        for k := 1 to LengthString do
+        begin
+            l := 1;
+            for m := InitialPosition to FinalPosition do
+            begin
+                buffer[i, l] := TempString[m];
+                l := l + 1;
+            end;
+
+            for m := l to WidthScreen do
+                Buffer[i, m] := chr(32);
+
+            InitialPosition := FinalPosition + 1;
+            FinalPosition := FinalPosition * (LengthString + 1);
+            if FinalPosition > j then
+                FinalPosition := j;
+            i := i + 1;
+        end;
     end;
-    WriteVRAM (0, $0000, addr(ScreenBuffer), $0730);
 end;
 
-procedure SetLastLine (TextFileName: TFileName; PagePerDocument, TotalPages, Line: integer);
+procedure ShowPage (Page: Byte);
 begin
+    clrscr2;
+    WriteVRAM (0, $0000, addr(buffer[23 * (Page - 1)]), $0730);
+end;
 
-{ Faz todo o trabalho para colocar informacao na ultima linha. }
-            
+procedure UpdateLastLine (Page: Byte; TextFileName: TFileName; PagePerDocument, TotalPages, Line: integer);
+var
+    TempString: String[80];
+    TempTinyString: String[8];
+    
+begin
     fillchar(TempString, sizeof(TempString), ' ');
     TempString := concat('File: ', TextFileName, '  Page ');
     fillchar(TempTinyString, sizeof(TempTinyString), ' ');
@@ -323,98 +275,51 @@ begin
     blink (1, 24, 80);
 end;
 
-BEGIN
-    clrscr;
-    AllChars := [0..255];
-    NoPrint := [0..31, 127, 255];
-    Print := AllChars - NoPrint;
+function NavigateThroughPages(Segment: byte; TextFileName: TFileName; PagePerDocument, TotalPages, Line: integer): boolean;
+var
+    i, j: byte;
+    ch: char;
+    NextPage, NextSegment: boolean;
     
-    writeln('Init Mapper? ', InitMapper(Mapper));
-    PointerMapperVarTable := GetMapperVarTable(Mapper);
-    writeln('Number of free segments: ', PointerMapperVarTable^.nFreeSegs);
-    writeln('Reading services file...');
-    TextFileName := 'd:\services';
+begin
 
-{ Le arquivo 1a vez - pega o tamanho de tudo. }
-
-    assign(B2FileHandle, TextFileName);
-    reset(B2FileHandle);
-    MaxSize := (FileSize(B2FileHandle) * 128);
-    TotalPages := round(int(MaxSize / (SizeTextScreen + 1))) + 1;
-    writeln('MaxSize = ', MaxSize:0:0, ' bytes.');
-    writeln('TotalPages = ', TotalPages);
-    close(B2FileHandle);
-
-{ Le arquivo 2a vez - le e joga na Mapper. }
-
-    BFileHandle := FileOpen (TextFileName, 'r');
-    SeekResult := FileSeek (BFileHandle, 0, ctSeekSet, NewPosition);
-
-{ Comeca com o segmento 4 da memoria. }
-
-    PageRemnant := 0;
-    FirstSegment := 4;
-    i := FirstSegment;
-    MaxBlock := round(int(MaxSize / Limit)) + 1;
-    writeln ('MaxBlock: ', MaxBlock);
-    while (i <= (MaxBlock + FirstSegment)) do
-    begin
-        PutMapperPage (Mapper, i, 2);
-        gotoxy(20, 5); writeln('Block: ', i, ' MaxBlock + FirstSegment: ', MaxBlock + FirstSegment);
-        fillchar(Buffer, sizeof (Buffer), 0 );
-        BlockReadResult := FileBlockRead (BFileHandle, Buffer, Limit);
-        i := i + 1;
-    end;
-    PutMapperPage (Mapper, 2, 2);
-
-    CloseResult := FileClose(BFileHandle);
-
-{ Aqui, ele mostra a pagina. Se teclar ESC, sai do programa. }
+{ Here it shows the page. If the user hits ESC, the program is finished. }
 
     ch := #00;
-    j := FirstSegment;
-    Segment := 4;
+    i := Segment;
     Page := 1;
-    l := 1;
+    j := 1;
+    NextSegment := false;
+    NextPage := false;
 
-{ Limpa os blinks }
-
-    ClearAllBlinks;
-    SetBlinkColors(DBlue, White);
-    SetBlinkRate(1, 0);
-
-    MaxTotalPagesPerSegment := PreProcessing (Segment);
-    LastSegment := Segment;
-    
-    readln;
-    
     while ch <> ESC do
     begin
         NextPage := false;
-        FromRAMToVRAM (Segment, Page, MaxTotalPagesPerSegment);
+        ShowPage (Page);
         
-{ Faz todo o trabalho para colocar informacao na ultima linha. }
-        blink (1, l, 80);
-        SetLastLine (TextFileName, Page, TotalPages, l);
+{ Here the program calls the procedure which places info in the last line of the page. }        
+        
+        blink (1, Line, 80);
+        UpdateLastLine (Page, TextFileName, PagePerDocument, TotalPages, Line);
 
         while not NextPage do
         begin
             ch := readkey;
-            ClearBlink(1, l, 80);
+            ClearBlink(1, Line, 80);
             case ch of
                 ESC: begin
                         ClearAllBlinks;
                         SetOriginalScreen;
                         exit;
                     end;
-                Home: l := 1;
-                Select: l := 23;
+                Home:   Line := 1;
+                Select: Line := 23;
                 Insert: begin
                             Page := 1;
                             NextPage := true;
                         end;
                 Delete: begin
-                            Page := MaxTotalPagesPerSegment;
+                            Page := PagesPerSegment;
                             NextPage := true;
                         end;
                 Space: begin
@@ -426,41 +331,93 @@ BEGIN
                                 NextPage := true;
                             end;
                 UpArrow: begin
-                            l := l - 1;
-                            if l < 1 then 
+                            Line := Line - 1;
+                            if Line < 1 then 
                             begin
                                 Page := Page - 1;
                                 NextPage := true;
-                                l := 1;
+                                Line := 1;
                             end;
                         end;
                 DownArrow: begin
-                                l := l + 1;
-                                if l > 23 then 
+                                Line := Line + 1;
+                                if Line > 23 then 
                                 begin
                                     Page := Page + 1;
                                     NextPage := true;
-                                    l := 1;
+                                    Line := 1;
                                 end;
                             end;
             end;
             if Page < 1 then Page := 1;
             if Page > TotalPages then Page := TotalPages;
-            if Page >= MaxTotalPagesPerSegment then
+            if Page >= PagesPerSegment then
             begin
                 Page := 1;
                 Segment := Segment + 1;
-                MaxTotalPagesPerSegment := PreProcessing (Segment);
                 NextPage := true;
                 readln;
             end;
 {
             blink (1, 24, 80);
 }
-            blink (1, l, 80);
-            SetLastLine (TextFileName, Page, TotalPages, l);
+            blink (1, Line, 80);
+            UpdateLastLine (Page, TextFileName, PagePerDocument, TotalPages, Line);
         end;
     end;
+end;
+
+BEGIN
+    clrscr;
+    AllChars := [0..255];
+    NoPrint := [0..31, 127, 255];
+    Print := AllChars - NoPrint;
+    
+    writeln('Init Mapper? ', InitMapper(Mapper));
+    PointerMapperVarTable := GetMapperVarTable(Mapper);
+    writeln('Number of free segments: ', PointerMapperVarTable^.nFreeSegs);
+    writeln('Reading services file...');
+    TextFileName := 'd:\services';
+    
+{ Clear the blink table, set colors (to do later) and set a non flashable blink rate. }
+
     ClearAllBlinks;
-    SetOriginalScreen;
+    SetBlinkColors(DBlue, White);
+    SetBlinkRate(1, 0);
+
+{ Le arquivo 1a vez - pega o tamanho de tudo. }
+
+    assign(B2FileHandle, TextFileName);
+    reset(B2FileHandle);
+    MaxSize := (FileSize(B2FileHandle) * 128);
+    TotalPages := round(int(MaxSize / (SizeScreen + 1))) + 1;
+    TotalSegments := round(int(TotalPages / PagesPerSegment));
+    writeln('MaxSize = ', MaxSize:0:0, ' bytes.');
+    writeln('TotalPages = ', TotalPages);
+    writeln('TotalSegments = ', TotalSegments);
+    close(B2FileHandle);
+
+{ Le arquivo 2a vez - le e joga na Mapper. }
+
+    assign(BFileHandle, TextFileName);
+    reset(BFileHandle);
+
+{ Comeca com o segmento 4 da memoria. }
+
+    i := FirstSegment;
+    while not eof(BFileHandle) do
+    begin
+        ReadBitOfFileIntoMapper (i);
+
+        for j := 1 to PagesPerSegment do
+        begin
+            ShowPage(j);
+            UpdateLastLine(j, TextFileName, 8, TotalPages, 1);
+            readln;
+        end;
+        
+        i := i + 1;
+    end;
+    PutMapperPage (Mapper, 2, 2);
+    ClearAllBlinks;
 END.
