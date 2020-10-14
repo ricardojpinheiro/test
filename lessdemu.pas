@@ -68,7 +68,7 @@ type
     ASCII = set of 0..255;
 
 var i, j, k, l, m, n, Page, TotalPages: integer;
-    TotalSegments: integer;
+    Line, PagesPerDocument, Segment, TotalSegments: integer;
     MaxSize: real;
     buffer : Array[1..LinesPerSegment,1..WidthScreen] of char absolute $8000; { Page 2 }
     BFileHandle: text;
@@ -77,8 +77,9 @@ var i, j, k, l, m, n, Page, TotalPages: integer;
     
     Mapper: TMapperHandle;
     PointerMapperVarTable: PMapperVarTable;
-    NextPage, CloseResult: boolean;
+    NextPage, Finished, NextSegment: boolean;
     TempString: TString;
+    TempTinyString: string[8];
     TextFileName: TFileName;
     OriginalRegister9Value: byte;
     ch: char;
@@ -180,7 +181,7 @@ begin
      qqc := 0;
 end;
 
-procedure ReadBitOfFileIntoMapper (Segment: byte);
+procedure ReadPartOfFileIntoMapper (Segment: byte);
 const
     TABChar = #9;
 var
@@ -254,117 +255,20 @@ begin
     WriteVRAM (0, $0000, addr(buffer[23 * (Page - 1)]), $0730);
 end;
 
-procedure UpdateLastLine (Page: Byte; TextFileName: TFileName; PagePerDocument, TotalPages, Line: integer);
+procedure UpdateLastLine (Page: Byte; TextFileName: TFileName; PagesPerDocument, TotalPages, Line: integer);
 var
-    TempString: String[80];
-    TempTinyString: String[8];
-    
+    StringArray: array [1..3] of String[4];
 begin
-    fillchar(TempString, sizeof(TempString), ' ');
-    TempString := concat('File: ', TextFileName, '  Page ');
-    fillchar(TempTinyString, sizeof(TempTinyString), ' ');
-    str(PagePerDocument, TempTinyString);
-    TempString := concat(TempString, TempTinyString);
-    fillchar(TempTinyString, sizeof(TempTinyString), ' ');
-    str(TotalPages, TempTinyString);
-    TempString := concat(TempString, ' of ', TempTinyString, ' Line ');
-    str(Line, TempTinyString);
-    TempString := concat(TempString, TempTinyString, ' ');
+    for i := 1 to 3 do
+        fillchar(StringArray[i], sizeof(StringArray[i]), ' ' );
+    str(Page, StringArray[1]);
+    str(TotalPages, StringArray[2]);
+    str(Line, StringArray[3]);
+    TempString := concat('File: ', TextFileName, '  Page ', StringArray[1], ' of ',
+                        StringArray[2], ' Line ', StringArray[3]);
     gotoxy2(1, 24);
     fastwriteln(TempString);
     blink (1, 24, 80);
-end;
-
-function NavigateThroughPages(Segment: byte; TextFileName: TFileName; PagePerDocument, TotalPages, Line: integer): boolean;
-var
-    i, j: byte;
-    ch: char;
-    NextPage, NextSegment: boolean;
-    
-begin
-
-{ Here it shows the page. If the user hits ESC, the program is finished. }
-
-    ch := #00;
-    i := Segment;
-    Page := 1;
-    j := 1;
-    NextSegment := false;
-    NextPage := false;
-
-    while ch <> ESC do
-    begin
-        NextPage := false;
-        ShowPage (Page);
-        
-{ Here the program calls the procedure which places info in the last line of the page. }        
-        
-        blink (1, Line, 80);
-        UpdateLastLine (Page, TextFileName, PagePerDocument, TotalPages, Line);
-
-        while not NextPage do
-        begin
-            ch := readkey;
-            ClearBlink(1, Line, 80);
-            case ch of
-                ESC: begin
-                        ClearAllBlinks;
-                        SetOriginalScreen;
-                        exit;
-                    end;
-                Home:   Line := 1;
-                Select: Line := 23;
-                Insert: begin
-                            Page := 1;
-                            NextPage := true;
-                        end;
-                Delete: begin
-                            Page := PagesPerSegment;
-                            NextPage := true;
-                        end;
-                Space: begin
-                            Page := Page + 1;
-                            NextPage := true;
-                        end;
-                ControlB: begin
-                                Page := Page - 1;
-                                NextPage := true;
-                            end;
-                UpArrow: begin
-                            Line := Line - 1;
-                            if Line < 1 then 
-                            begin
-                                Page := Page - 1;
-                                NextPage := true;
-                                Line := 1;
-                            end;
-                        end;
-                DownArrow: begin
-                                Line := Line + 1;
-                                if Line > 23 then 
-                                begin
-                                    Page := Page + 1;
-                                    NextPage := true;
-                                    Line := 1;
-                                end;
-                            end;
-            end;
-            if Page < 1 then Page := 1;
-            if Page > TotalPages then Page := TotalPages;
-            if Page >= PagesPerSegment then
-            begin
-                Page := 1;
-                Segment := Segment + 1;
-                NextPage := true;
-                readln;
-            end;
-{
-            blink (1, 24, 80);
-}
-            blink (1, Line, 80);
-            UpdateLastLine (Page, TextFileName, PagePerDocument, TotalPages, Line);
-        end;
-    end;
 end;
 
 BEGIN
@@ -404,19 +308,93 @@ BEGIN
 
 { Comeca com o segmento 4 da memoria. }
 
-    i := FirstSegment;
+    Segment := FirstSegment;
+    PagesPerDocument := TotalPages * PagesPerSegment;
+    Page := 1;
+    Line := 1;
+
     while not eof(BFileHandle) do
     begin
-        ReadBitOfFileIntoMapper (i);
+        ReadPartOfFileIntoMapper (Segment);
 
-        for j := 1 to PagesPerSegment do
+{ Here is where the program shows the page. 
+* If the user hits ESC, the program is finished. }
+
+        ch := #00;
+        NextSegment := false;
+
+        while (ch <> ESC) or (NextSegment = false) do
         begin
-            ShowPage(j);
-            UpdateLastLine(j, TextFileName, 8, TotalPages, 1);
-            readln;
+            NextPage := false;
+            ShowPage (Page);
+            UpdateLastLine (Page, TextFileName, PagesPerDocument, TotalPages, Line);
+            
+    { Here the program calls the procedure which places info in the last line of the page. }        
+
+    {        
+            blink (1, Line, 80);
+            UpdateLastLine (Page, TextFileName, PagesPerDocument, TotalPages, Line);
+    }
+            while not NextPage do
+            begin
+                ch := readkey;
+                ClearBlink(1, Line, 80);
+                UpdateLastLine (Page, TextFileName, PagesPerDocument, TotalPages, Line);
+                case ch of
+                    ESC: begin
+                            ClearAllBlinks;
+                            SetOriginalScreen;
+                            exit;
+                        end;
+                    Home:   Line := 1;
+                    Select: Line := 23;
+                    Insert:     begin
+                                    Page := 1;
+                                    NextPage := true;
+                                end;
+                    Delete:     begin
+                                    Page := PagesPerSegment;
+                                    NextPage := true;
+                                end;
+                    Space:      begin
+                                    Page := Page + 1;
+                                    NextPage := true;
+                                end;
+                    ControlB:   begin
+                                    Page := Page - 1;
+                                    NextPage := true;
+                                end;
+                    UpArrow:    begin
+                                    Line := Line - 1;
+                                    if Line < 1 then 
+                                    begin
+                                        Page := Page - 1;
+                                        NextPage := true;
+                                        Line := 1;
+                                    end;
+                                end;
+                    DownArrow: begin
+                                    Line := Line + 1;
+                                    if Line > 23 then 
+                                    begin
+                                        Page := Page + 1;
+                                        NextPage := true;
+                                        Line := 1;
+                                    end;
+                                end;
+                end;
+                if Page < 1 then Page := 1;
+                if Page > TotalPages then Page := TotalPages;
+                if Page >= PagesPerSegment then
+                begin
+                    Page := 1;
+                    Segment := Segment + 1;
+                    NextPage := true;
+                    NextSegment := true;
+                end;
+                blink (1, Line, 80);
+            end;
         end;
-        
-        i := i + 1;
     end;
     PutMapperPage (Mapper, 2, 2);
     ClearAllBlinks;
