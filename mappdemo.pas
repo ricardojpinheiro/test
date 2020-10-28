@@ -43,6 +43,19 @@ var i, j, l : integer;
     PointerMapperVarTable: PMapperVarTable;
     SegmentId: byte;
 
+function Readkey : char;
+var
+    bt: integer;
+    qqc: byte absolute $FCA9;
+begin
+     readkey := chr(0);
+     qqc := 1;
+     Inline($f3/$fd/$2a/$c0/$fc/$DD/$21/$9F/00     
+            /$CD/$1c/00/$32/bt/$fb);
+     readkey := chr(bt);
+     qqc := 0;
+end;
+
 Procedure MAPRBASE;
 begin
     writeln('MAPRBASE:');
@@ -74,7 +87,7 @@ begin
         AllRight := WriteMapperSegment(Mapper, SegmentId, i, ord(StringTest[i - addr(StringTest)]));
 
     writeln('Writing results: ', AllRight);
-    writeln('Freeing segment: ', FreeMapperSegment(Mapper, Mapper.nPriMapperSlot, SegmentId));
+    writeln('Releasing segment: ', FreeMapperSegment(Mapper, Mapper.nPriMapperSlot, SegmentId));
 
     StringTest := '';
     writeln('Text: ', StringTest);
@@ -136,6 +149,7 @@ begin
     writeln('Now we''ll retrieve a mapper segment based on a specific address.');
     writeln('We''ll use the StringTest''s address, which is ', addr(StringTest));
     writeln('We know that it''s in the page ', GetMapperPageByAddress(Mapper, addr(StringTest)));
+    Character := readkey;
 end;
 
 Procedure MAPRVARS;
@@ -147,6 +161,7 @@ begin
     writeln('Current page 3: ', CURSEGPAGE3);
     writeln('Segment page 2: ', LASTSEGPAGE2);
     writeln('Segment page 0: ', LASTSEGPAGE0);
+    Character := readkey;
 end;
 
 BEGIN
@@ -164,8 +179,7 @@ BEGIN
         writeln(' 5 - MAPRPAGE3');
         writeln(' 6 - MAPRVARS');
         writeln(' F - End.');
-        read(kbd, Character);
-        Character := upcase(Character);
+        Character := upcase(readkey);
         case Character of 
             '1': MAPRBASE;
             '2': MAPRALLC_and_MAPRRW; 
@@ -175,7 +189,7 @@ BEGIN
             '6': MAPRVARS;
             'F': exit;
         end;
-        readln;
+        Character := readkey;
     end;
 END.
 

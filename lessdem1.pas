@@ -14,11 +14,12 @@ program lessdemo;
 {$i d:maprbase.inc}
 {$i d:maprvars.inc}
 {$i d:maprpage.inc}
+{$i d:maprrw.inc}
 {$i d:blink.inc}
 
 const
-    Limit = 16336;
-    SizeScreen = 1919;
+    Limit = 16384;
+    SizeScreen = 1920;
     SizeTextScreen = 1840;
     PagesPerSegment = 16;
     

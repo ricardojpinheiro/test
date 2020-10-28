@@ -18,7 +18,7 @@ program lessdemo;
 
 const
     Limit = 15360;
-    LinesPerSegment = 204;
+    LinesPerSegment = 192;
     ReadLinesPerSegment = 192;
     PagesPerSegment = 8;
     FirstSegment = 4;
@@ -70,7 +70,8 @@ type
 var i, j, k, l, m, n, Page, TotalPages: integer;
     Line, PagesPerDocument, Segment, TotalSegments: integer;
     MaxSize: real;
-    buffer : Array[1..LinesPerSegment,1..WidthScreen] of char absolute $8000; { Page 2 }
+    buffer : Array[1..ReadLinesPerSegment,1..WidthScreen] of char absolute $8000; { Page 2 }
+    TempBuffer : Array [1..12, 1..WidthScreen] of char absolute $C000; { Page 3 }
     BFileHandle: text;
     B2FileHandle: file;
     NoPrint, Print, AllChars: ASCII;
@@ -168,7 +169,7 @@ Begin
   CSRY := nPosY;
 End;
 
-function Readkey : char;
+function Readkey: char;
 var
     bt: integer;
     qqc: byte absolute $FCA9;
@@ -189,9 +190,12 @@ var
     LengthString, InitialPosition, FinalPosition: byte;
     TempString: TString;
     TempTinyString: String[8];
+    TotalLines: byte;
 
 begin
     i := 0;
+    j := 0;
+    TotalLines := 0;
 {    
     gotoxy(20, 5); writeln('Segment: ', Segment, ' FirstSegment + TotalSegments: ', FirstSegment + TotalSegments);
 }    
@@ -207,11 +211,11 @@ begin
 {   Test if there is any TAB. Should be able to identify all of them. }
 
         repeat
-            j := Pos (TABChar, TempString);
+            j := pos (TABChar, TempString);
             if j <> 0 then 
             begin
                 delete (TempString, j, 1);
-                insert(TempTinyString, TempString, j);
+                insert (TempTinyString, TempString, j);
             end;
         until j = 0;
         
@@ -227,7 +231,6 @@ begin
             FinalPosition := j;
        
         LengthString := (length(TempString) div WidthScreen) + 1;
-        
         for k := 1 to LengthString do
         begin
             l := 1;
@@ -312,7 +315,7 @@ BEGIN
     PagesPerDocument := TotalPages * PagesPerSegment;
     Page := 1;
     Line := 1;
-
+    
     while not eof(BFileHandle) do
     begin
         ReadPartOfFileIntoMapper (Segment);
