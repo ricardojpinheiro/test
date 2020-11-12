@@ -28,7 +28,7 @@
   * function;
   * @param nSegmentId The allocated segment id if the allocation was
   * successfull;
-  *)
+  *)	
 Function AllocMapperSegment( Var handle     : TMapperHandle;
                              nSlotId        : TSlotNumber;
                              segmentType    : TSegmentType;
@@ -108,4 +108,5 @@ Begin
 
   FreeMapperSegment := Boolean( nRetCode );
 End;
-
+
+
