@@ -13,13 +13,15 @@ program lessdemo;
 {$i d:extbio.inc}
 {$i d:maprbase.inc}
 {$i d:maprvars.inc}
-{$i d:maprpage.inc}
 {$i d:maprrw.inc}
+{$i d:maprallc.inc}
 {$i d:blink.inc}
+{$i d:divs.inc} 
+{$i d:plainmem.inc}
 
 const
-    Limit = 16384;
-    SizeScreen = 1920;
+    Limit = 16336;
+    SizeScreen = 1919;
     SizeTextScreen = 1840;
     PagesPerSegment = 16;
     
@@ -65,12 +67,13 @@ const
 type
     ASCII = set of 0..255;
 
-var i, j, k, l, Page, MaxBlock, FirstSegment: integer;
+var i, j, k, l, Page, MaxBlock: integer;
     MaxSize: real;
-    buffer: array [0..Limit] of Byte absolute $8000; { Page 2 }
+    Buffer: aBuffer absolute $8000; { Page 2 }
     BFileHandle: byte;
     B2FileHandle: file;
     NoPrint, Print, AllChars: ASCII;
+    PlainMemory: TPlainMem;
     
     Mapper: TMapperHandle;
     PointerMapperVarTable: PMapperVarTable;
@@ -214,7 +217,6 @@ begin
 
 { Inicializa variáveis e seta o segmento da Mapper na página 2 }
 
-    PutMapperPage (Mapper, Segment, 2);
     EndOfPage[0]    := 0;
     EndOfPageIndex  := 0;
     BufferIndex     := 0;
@@ -239,7 +241,6 @@ begin
   marca a necessidade de pegar o dado no segmento seguinte. } 
 
                 BufferIndex := 0;
-                PutMapperPage (Mapper, Segment + 1, 2);
                 NextSegment := true;
             end;
             
@@ -272,7 +273,6 @@ begin
     
 { Aqui, joga da RAM pra VRAM. }
 
-    PutMapperPage (Mapper, Segment, 2);
     i := EndOfPage[Page - 1];
 
     if Page > 1 then
@@ -289,7 +289,6 @@ begin
         if i >= Limit then
         begin
             i := 0;
-            PutMapperPage (Mapper, Segment + 1, 2);
             temporary := EndOfPage[Page + 1];
         end;
         if Buffer[i] in Print then
@@ -338,6 +337,8 @@ BEGIN
     writeln('Reading services file...');
     TextFileName := 'd:\services';
 
+    EnablePlainMem (PlainMemory, Mapper, 1);
+
 { Le arquivo 1a vez - pega o tamanho de tudo. }
 
     assign(B2FileHandle, TextFileName);
@@ -353,24 +354,26 @@ BEGIN
     BFileHandle := FileOpen (TextFileName, 'r');
     SeekResult := FileSeek (BFileHandle, 0, ctSeekSet, NewPosition);
 
+    writeln('BFileHandle: ',BFileHandle, ' SeekResult: ',SeekResult);
+
 { Comeca com o segmento 4 da memoria. }
 
     PageRemnant := 0;
-    FirstSegment := 4;
     i := FirstSegment;
     MaxBlock := round(int(MaxSize / Limit)) + 1;
     writeln ('MaxBlock: ', MaxBlock);
-    while (i <= (MaxBlock + FirstSegment)) do
+    while (i <= TotalPages) do
     begin
-        PutMapperPage (Mapper, i, 2);
         gotoxy(20, 5); writeln('Block: ', i, ' MaxBlock + FirstSegment: ', MaxBlock + FirstSegment);
         fillchar(Buffer, sizeof (Buffer), 0 );
-        BlockReadResult := FileBlockRead (BFileHandle, Buffer, Limit);
-        i := i + 1;
+        BlockReadResult := FileBlockRead (BFileHandle, Buffer, 15872);
+        WriteToPlainMemory (Mapper, PlainMemory, i, i + 15872, Buffer);
+        i := i + 15872;
     end;
-    PutMapperPage (Mapper, 2, 2);
 
     CloseResult := FileClose(BFileHandle);
+
+    exit;
 
 { Aqui, ele mostra a pagina. Se teclar ESC, sai do programa. }
 

@@ -33,6 +33,9 @@ program mappdemo;
 const
     Limit = 79;
 
+type
+    str8 = string[8];
+
 var i, j, l : integer;
     StringTest: string[80] absolute $C000; { Page 3 } 
     Allright: boolean;
@@ -143,11 +146,44 @@ begin
     writeln('Ah, much better.');
 end;    
 
+function IntegerDivision (a, b: real): integer;
+begin
+    IntegerDivision := round(int((a - (a - (b * (a / b)))) / b));
+end;
+
+function IntegerModulo (a, b: real): integer;
+begin
+    IntegerModulo := round(int(a - (b * round(int(a / b)))));
+end;
+
+Function I2Hex (L: real): str8;
+const
+    D = 16;
+var
+    S : str8;
+    N : integer;
+    R : integer;
+begin
+    S := '';
+    if L < 0 then
+        L := (((-1 * (maxint)) + L) * -1) + 1;
+    for N := 1 to sizeof(S) - 1 do
+    begin
+        R := IntegerModulo(L, D); { remainder }
+        L := IntegerDivision(L, D); { for next dividing/digit }
+        if R <= 9 then
+            S := chr (R + 48) + S { 0.. 9 -> '0'..'9' (#48.. #57) }
+        else
+            S := chr (R + 87) + S; { 10..15 -> 'a'..'f' (#97..#102) }
+    end;
+    I2Hex := S; { the output in exactly 8 digits }
+end; { I2Hex }
+
 Procedure MAPRPAGE3;
 begin
     writeln('Yet MAPRPAGE:');
     writeln('Now we''ll retrieve a mapper segment based on a specific address.');
-    writeln('We''ll use the StringTest''s address, which is ', addr(StringTest));
+    writeln('We''ll use the StringTest''s address, which is ', i2hex(addr(StringTest)));
     writeln('We know that it''s in the page ', GetMapperPageByAddress(Mapper, addr(StringTest)));
     Character := readkey;
 end;
@@ -172,12 +208,12 @@ BEGIN
         clrscr;
         writeln(' Mapper routines demo program: ');
         writeln(' Choose your weapon: ');
-        writeln(' 1 - MAPRBASE');
-        writeln(' 2 - MAPRALLC_and_MAPRRW');
-        writeln(' 3 - MAPRPAGE1');
-        writeln(' 4 - MAPRPAGE2');
-        writeln(' 5 - MAPRPAGE3');
-        writeln(' 6 - MAPRVARS');
+        writeln(' 1 - MAPRBASE (read info from Mapper)');
+        writeln(' 2 - MAPRALLC_and_MAPRRW (allocate, write, free and read)');
+        writeln(' 3 - MAPRPAGE1 (which segment are allocated to which page)');
+        writeln(' 4 - MAPRPAGE2 (uses PutMapperPage and GetMapperPage)');
+        writeln(' 5 - MAPRPAGE3 (uses GetMapperPageByAddress)');
+        writeln(' 6 - MAPRVARS (show somre variables)');
         writeln(' F - End.');
         Character := upcase(readkey);
         case Character of 
