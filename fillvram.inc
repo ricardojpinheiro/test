@@ -1,3 +1,4 @@
+{fillvram.inc}
 
 Procedure FillVram(VramBlockUsed :Byte;
                     VramAddr     :Integer;
@@ -21,10 +22,14 @@ Begin
   AddrMid := Hi(Vramaddr) And 63 ;
 
   Inline(
-      $F3/$3A/ Expansion /$D3/$99/$3E/$2D/$F6/$80/$D3/$99/$3A/ AddrHi /$D3/
-      $99/$3E/$0E/$F6/$80/$D3/$99/$3A/ AddrLo /$00/$D3/$99/$3A/ AddrMid /$F6/
-      $40/$D3/$99/    $ED/$4B/ ByteCount /$3a/FillValue/$D3/$98/$0B/$79/
+      $F3/$3A/ Expansion /$D3/$99/$3E/$2D/$F6/$80/$D3/$99/$3A/ AddrHi /$D3/
+
+      $99/$3E/$0E/$F6/$80/$D3/$99/$3A/ AddrLo /$00/$D3/$99/$3A/ AddrMid /$F6/
+
+      $40/$D3/$99/    $ED/$4B/ ByteCount /$3a/FillValue/$D3/$98/$0B/$79/
+
       $B0/$20/$F6/ $F3/$3e/ 0  /$D3/$99/$3E/$2D/$F6/$80/$D3/$99
-        );
+        );
+
 End;
-
+

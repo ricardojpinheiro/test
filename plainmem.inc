@@ -17,16 +17,18 @@
  * Yada-yada-yada
  *)
 
-{$i d:types.inc}
-{$i d:msxbios.inc}
-{$i d:extbio.inc}
-{$i d:maprbase.inc}
-{$i d:maprvars.inc}
-{$i d:maprrw.inc}
-{$i d:maprallc.inc}
-{$i d:maprpage.inc}
- 
- 
+(*
+{i d:types.inc}
+{i d:msxbios.inc}
+{i d:extbio.inc}
+{i d:maprbase.inc}
+{i d:maprvars.inc}
+{i d:maprrw.inc}
+{i d:maprallc.inc}
+{i d:maprpage.inc}
+{i diversos.inc} 
+*) 
+
 (*
 * Constants
 *)
@@ -50,16 +52,6 @@ type
             aAllocatedSegments  : array [1..MaxSegments] of Byte;
     end;
     aBuffer =   array[1..LastPositionSegment] of byte;
-
-function IntegerDivision (a, b: real): integer;
-begin
-    IntegerDivision := round(int((a - (a - (b * (a / b)))) / b));
-end;
-
-function IntegerModulo (a, b: real): integer;
-begin
-    IntegerModulo := round(int(a - (b * round(int(a / b)))));
-end;
 
 (*
 * Enable the plain memory abstraction layer.
@@ -137,8 +129,8 @@ begin
     FirstSegmentToBeUsed  := IntegerDivision(FirstPosition, LastPositionAtSegment) + 1;
     LastSegmentToBeUsed   := IntegerDivision(LastPosition , LastPositionAtSegment) + 1;
     
-    FirstAddressInSegment := IntegerModulo(FirstPosition, LastPositionAtSegment);
-    LastAddressInSegment  := IntegerModulo(LastPosition , LastPositionAtSegment);
+    FirstAddressInSegment := IntegerRemainder(FirstPosition, LastPositionAtSegment);
+    LastAddressInSegment  := IntegerRemainder(LastPosition , LastPositionAtSegment);
 
     iBuffer := 1;
     DifferentSegments := false;
@@ -198,8 +190,8 @@ begin
     FirstSegmentToBeUsed    := IntegerDivision(FirstPosition , LastPositionAtSegment) + 1;
     LastSegmentToBeUsed     := IntegerDivision(LastPosition  , LastPositionAtSegment) + 1;
 
-    FirstAddressInSegment   := IntegerModulo(FirstPosition  , LastPositionAtSegment);
-    LastAddressInSegment    := IntegerModulo(LastPosition   , LastPositionAtSegment);
+    FirstAddressInSegment   := IntegerRemainder(FirstPosition  , LastPositionAtSegment);
+    LastAddressInSegment    := IntegerRemainder(LastPosition   , LastPositionAtSegment);
 
     iBuffer := 1;
     DifferentSegments := false;
@@ -246,57 +238,3 @@ begin
 }
 end;
 
-var
-    Mapper: TMapperHandle;
-    PointerMapperVarTable: PMapperVarTable;
-    PlainMemory: TPlainMem;
-    Buffer: aBuffer absolute $8000;
-    Texto: string[80];
-    i, j: integer;
-    Teste: boolean;
-    SegmentId: byte;
-
-begin
-    SegmentId := 0;
-
-    Teste := InitMapper(Mapper);
-    writeln('Mapper initialized? ', Teste);
-    
-    PointerMapperVarTable := GetMapperVarTable(Mapper);
-    writeln('Slot address of primary mapper: ', Mapper.nPriMapperSlot);
-    writeln('Total segments of primary mapper: ', Mapper.nTotalMapperSegs);
-
-    writeln('Enabling Plain Memory...');
-    EnablePlainMem (PlainMemory, Mapper, 1);
-
-    fillchar(Texto, sizeof(Texto), ' ' );
-
-
-    Texto := 'MSX r0x a lot, dudez.';
-
-{
-   for j := 1 to sizeof(Texto) do
-        Texto[j] := chr(random(26) + 64);
-    Texto[0] := chr(sizeof(Texto));
-}
-    j := length(Texto);
-    writeln('Text: ', Texto);
-    writeln('Converting...');
-    for i := 1 to j do
-        Buffer[i] := ord(Texto[i]);
-
-    writeln('Writing to...');
-    WriteToPlainMemory (Mapper, PlainMemory, 16380, 16380 + j, Buffer);
-    fillchar(Texto, sizeof(Texto), ' ' );
-    fillchar(Buffer, sizeof(Buffer), ' ' );
-    writeln('Text: ', Texto);
-    writeln('Reading from...');
-    ReadFromPlainMemory (Mapper, PlainMemory, 16380, 16380 + j, Buffer);
-    for i := 1 to j do
-        Texto[i] := chr(Buffer[i]);
-    Texto[0] := chr(j);
-    writeln('Text: ', Texto);
-    writeln('Disabling...');
-    DisablePlainMem (PlainMemory, Mapper);
-    writeln('Normal exit');
-end.

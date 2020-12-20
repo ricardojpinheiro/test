@@ -15,10 +15,6 @@
 
  }
 
-const
-    _CALROM: array[0..6] of byte = ($FD,$21,$00,$00,$C3,$D4,$20);
-    _CALSUB: array[0..6] of byte = ($FD,$21,$00,$00,$C3,$D4,$20);    
-
 Procedure ReadVRAM (VRAMaddress: Integer;var RAMaddress;NumberOfBytes: Integer);
   begin
    inline ($DD/$21/$59/$00/$ED/$4B/NumberOfBytes/
