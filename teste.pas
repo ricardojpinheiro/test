@@ -49,9 +49,27 @@ begin
   pressed_function_key:=nummer
 end;
 
+function Readkey : char;
+var
+    bt: integer;
+    qqc: byte absolute $FCA9;
+ 
+begin
+    readkey := chr(0);
+    qqc := 1;
+    Inline($f3/$fd/$2a/$c0/$fc/$DD/$21/$9F/00/$CD/$1c/00/$32/bt/$fb);
+    readkey := chr(bt);
+    qqc := 0;
+end;
+
+
 BEGIN
-        writeln('MSX version: ', msx_version);
-        for i := 1 to 5000 do
-            writeln(pressed_function_key);
+    writeln('MSX version: ', msx_version);
+    for i := 1 to 20 do
+        writeln(pressed_function_key);
+       
+    for i := 1 to 20 do
+        writeln(ord(readkey));
+
 END.
 

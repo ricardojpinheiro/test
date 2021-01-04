@@ -8,18 +8,7 @@
 
 program QedMSX;
 
-{$i d:readvram.inc}
-{$i d:wrtvram.inc}
-{$i d:fillvram.inc}
-{$i d:txtwin.inc}
-{$i d:blink.inc}
- 
- type
-   anystr     =        string [255];
-   linestring =        string [128];
-   lineptr    =        ^linestring;
-
- const
+const
     maxlines    = 50;
     CONTROLB    = #02;
     CONTROLE    = #05;
@@ -44,26 +33,36 @@ program QedMSX;
     Space       = #32;
     DELETE      = #127;
 
- var
-   currentline,
-   column,
-   highestline,
-   screenline:         integer;
-   linebuffer:         array [1.. maxlines] of lineptr;
-   emptyline:          lineptr;
-   tabset:             array [1..80] of boolean;
-   textfile:           text;
-   searchstring,
-   replacement:        linestring;
-   insertmode:         boolean;
-   
-   EditWindowPtr,
-   ErrorWindowPtr    : Pointer;
-   
-   FORCLR : Byte Absolute    $F3E9; { Foreground color                        }
-   BAKCLR : Byte Absolute    $F3EA; { Background color                        }
-   BDRCLR : Byte Absolute    $F3EB; { Border color                            }
+type
+    anystr      = string [255];
+    linestring  = string [128];
+    lineptr     = ^linestring;
 
+{$i d:fastwrit.inc}
+{$i d:readvram.inc}
+{$i d:fillvram.inc}
+{$i d:txtwin.inc}
+{$i d:blink.inc}
+
+var
+    currentline,
+    column,
+    highestline,
+    screenline:         integer;
+    linebuffer:         array [1.. maxlines] of lineptr;
+    emptyline:          lineptr;
+    tabset:             array [1..80] of boolean;
+    textfile:           text;
+    searchstring,
+    replacement:        linestring;
+    insertmode:         boolean;
+   
+    EditWindowPtr,
+    ErrorWindowPtr    : Pointer;
+   
+    FORCLR : Byte Absolute    $F3E9; { Foreground color                        }
+    BAKCLR : Byte Absolute    $F3EA; { Background color                        }
+    BDRCLR : Byte Absolute    $F3EB; { Border color                            }
 
 function Readkey : char;
 var
@@ -78,20 +77,6 @@ begin
     qqc := 0;
 end;
 
-Function WhereX : Byte;
-Var
-    CSRX : Byte Absolute $f3dd;
-Begin
-    WhereX := CSRX;
-End;
-
-Function WhereY : Byte;
-Var  
-    CSRY : Byte Absolute $f3dc;
-Begin
-    WhereY := CSRY;
-End;
- 
 Procedure CursorOn;
 Begin
     BlinkChar(column + 1, screenline + 1);
@@ -104,23 +89,18 @@ End;
 
 (**************************************************************************
   Return true if a key waiting, and the key.
-  If function key, add 256 to the value of the key.
  **************************************************************************)
- procedure getkey (var key : integer; var iscommand : boolean);
- var
+procedure getkey (var key: integer; var iscommand: boolean);
+var
     inkey : char;
- begin
-   iscommand := false;
-   inkey := readkey;
-   key := ord(inkey);
-   if inkey <= #27 then begin
-     iscommand := true;
-     if (inkey = #0) and keypressed then begin
-       inkey := readkey;
-       key := ord(inkey) + 256;
-     end;
-   end;
- end;
+begin
+    iscommand := false;
+    inkey := readkey;
+    key := ord(inkey);
+    case key of
+        1..31, 127: iscommand := true;
+    end;
+end;
 
  procedure WaitForKey;
  var
@@ -154,7 +134,7 @@ End;
 *)
  end;
 
- procedure quick_display(x,y: integer;  s: linestring);
+ procedure quick_display(x,y: integer; s: linestring);
  begin
     GotoWindowXY(EditWindowPtr, x, y);
     WriteWindow(EditWindowPtr, s);
@@ -467,7 +447,8 @@ procedure insertline;
 var
     i : integer;
 begin
-    insline;
+    GotoWindowXY(EditWindowPtr, column, screenline);
+    WriteLnWindow(EditWindowPtr, '');
 
     for i := highestline + 1 downto currentline do
         linebuffer[i + 1] := linebuffer [i];
@@ -477,13 +458,21 @@ begin
 end;
 
 procedure return;
+var
+    blankline: anystr;
 begin
     CursorDown;
     column := 1;
     GotoWindowXY(EditWindowPtr, column, screenline);
 
     if insertmode then
-        insertline;
+    begin
+{        insertline;
+}
+        fillchar(blankline, sizeof(blankline), '-' );
+        GotoWindowXY(EditWindowPtr, 1, screenline); 
+        WritelnWindow(EditWindowPtr, blankline);
+    end;
 end;
 
 procedure deleteline;
@@ -587,8 +576,8 @@ begin
     begin
         CursorUp;
         funcend;
-        del;
     end;
+    del;
 end;
 
 procedure terminate;
@@ -919,18 +908,18 @@ begin
 
 procedure handlefunc(keynum: integer);
 begin
-    case chr(keynum) of
-        BS:         backspace;
-        TAB:        tabulate;
-        ENTER:      return;
-        ESC:        escape;
-        HOME:       beginfile;
-        UpArrow:    CursorUp;
-        LeftArrow:  CursorLeft;
-        RightArrow: CursorRight;
-        DownArrow:  CursorDown;
-        INSERT:     ins;
-        DELETE:     del;
+    case keynum of
+        8:   backspace;
+        9:   tabulate;
+        13:  return;
+        27:  escape;
+        11:  beginfile;
+        30:  CursorUp;
+        29:  CursorLeft;
+        28:  CursorRight;
+        31:  CursorDown;
+        18:  ins;
+        127: del;
 (*
         271:  backtab;
         315:  help;
@@ -974,9 +963,10 @@ end;
 (* main loop - get a key and process it *)
 
    repeat
-        gotoxy(column, screenline);
-
+        GotoWindowXY(EditWindowPtr, column, screenline);
+        CursorOn;
         getkey (key, iscommand);
+        CursorOff;
         if iscommand then
             handlefunc(key)
         else
