@@ -10,28 +10,28 @@ program QedMSX;
 
 const
     maxlines    = 50;
-    CONTROLB    = #02;
-    CONTROLE    = #05;
-    CONTROLF    = #06;
-    CONTROLK    = #11;
-    CONTROLN    = #14;
-    CONTROLP    = #16;
-    CONTROLV    = #22;
-    CONTROLY    = #25;
-    BS          = #08;
-    TAB         = #09;
-    HOME        = #11;
-    CLS         = #12;
-    ENTER       = #13;
-    INSERT      = #18;
-    SELECT      = #24;
-    ESC         = #27;
-    RightArrow  = #28;
-    LeftArrow   = #29;
-    UpArrow     = #30;
-    DownArrow   = #31;
-    Space       = #32;
-    DELETE      = #127;
+    CONTROLB    = 2;
+    CONTROLE    = 5;
+    CONTROLF    = 6;
+    CONTROLK    = 11;
+    CONTROLN    = 14;
+    CONTROLP    = 16;
+    CONTROLV    = 22;
+    CONTROLY    = 25;
+    BS          = 8;
+    TAB         = 9;
+    HOME        = 11;
+    CLS         = 12;
+    ENTER       = 13;
+    INSERT      = 18;
+    SELECT      = 24;
+    ESC         = 27;
+    RightArrow  = 28;
+    LeftArrow   = 29;
+    UpArrow     = 30;
+    DownArrow   = 31;
+    Space       = 32;
+    DELETE      = 127;
 
 type
     anystr      = string [255];
@@ -44,6 +44,9 @@ type
 {$i d:txtwin.inc}
 {$i d:blink.inc}
 
+const
+    maxwidth = 78;
+
 var
     currentline,
     column,
@@ -51,7 +54,7 @@ var
     screenline:         integer;
     linebuffer:         array [1.. maxlines] of lineptr;
     emptyline:          lineptr;
-    tabset:             array [1..80] of boolean;
+    tabset:             array [1..maxwidth] of boolean;
     textfile:           text;
     searchstring,
     replacement:        linestring;
@@ -113,9 +116,6 @@ end;
  procedure init_msgline;
  begin
     GotoXY(1, 24);
-{
-     ClrEol;
-}
  end;
 
  procedure edit_win;
@@ -209,7 +209,7 @@ end;
         temp := concat('File not found: ', name);
         i := length(temp);
         ErrorWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'ERROR!');
-        gotoWindowXY (ErrorWindowPtr, 1, 1);
+        GotoWindowXY (ErrorWindowPtr, 1, 1);
         WriteWindow(ErrorWindowPtr, temp);
         delay(1000);
         EraseWindow(EditWindowPtr);
@@ -309,7 +309,7 @@ begin
     replacement := '';
     insertmode := false;
 
-    for i := 1 to 80 do
+    for i := 1 to maxwidth do
         tabset[i]:=(i mod 8)= 1;
 
     for i := 1 to maxlines do
@@ -388,27 +388,36 @@ begin
     CursorOn;
 end;
 
- procedure beginfile;
- begin
+procedure beginfile;
+begin
     currentline := 1;
     column := 1;
     screenline := 1;
     drawscreen;
- end;
+end;
 
- procedure endfile;
- begin
-   currentline := highestline + 1;
-   screenline := 12;
-   column := 1;
-   drawscreen;
- end;
+procedure endfile;
+begin
+    currentline := highestline + 1;
+    screenline := 12;
+    column := 1;
+    drawscreen;
+end;
+
+procedure beginline;
+begin
+    currentline := WhereYWindow(EditWindowPtr);
+    column := 1;
+    screenline := WhereYWindow(EditWindowPtr);
+    drawscreen;
+end;
+
 
 procedure funcend;
 begin
     column := length (linebuffer [currentline]^) + 1;
-    if column > 80 then
-        column := 80;
+    if column > 78 then
+        column := 78;
 end;
 
 procedure CursorUp;
@@ -437,7 +446,7 @@ begin
     if screenline > 22 then
     begin
         GotoWindowXY(EditWindowPtr, 1, 1);
-        delline;
+        DelLineWindow(EditWindowPtr);
         screenline := 22;
         quick_display(1, screenline, linebuffer [currentline]^);
     end;
@@ -447,39 +456,30 @@ procedure insertline;
 var
     i : integer;
 begin
-    GotoWindowXY(EditWindowPtr, column, screenline);
-    WriteLnWindow(EditWindowPtr, '');
+    GotoWindowXY(EditWindowPtr, column, screenline + 1);
+    InsLineWindow(EditWindowPtr);
 
     for i := highestline + 1 downto currentline do
-        linebuffer[i + 1] := linebuffer [i];
+        linebuffer[i + 1] := linebuffer[i];
 
     linebuffer[currentline] := emptyline;
     highestline := highestline + 1;
 end;
 
 procedure return;
-var
-    blankline: anystr;
 begin
     CursorDown;
-    column := 1;
     GotoWindowXY(EditWindowPtr, column, screenline);
 
     if insertmode then
-    begin
-{        insertline;
-}
-        fillchar(blankline, sizeof(blankline), '-' );
-        GotoWindowXY(EditWindowPtr, 1, screenline); 
-        WritelnWindow(EditWindowPtr, blankline);
-    end;
+        insertline;
 end;
 
 procedure deleteline;
 var
    i: integer;
 begin
-    delline;
+    DelLineWindow(EditWindowPtr);
 
     if highestline > currentline +(23 - screenline) then
         quick_display(1,22,linebuffer [currentline +(23 - screenline)]^);
@@ -527,7 +527,6 @@ begin
         insertmode := true;
 
     full_screen;
-    GotoWindowXY(EditWindowPtr, 1, 1);
 
     GotoXY(79, 1);
     if insertmode then
@@ -541,7 +540,7 @@ procedure del;
 begin
     if (column > length(linebuffer[currentline]^)) then
     begin
-        if (length(linebuffer[currentline]^) + length(linebuffer[currentline+1]^)) < 80 then
+        if (length(linebuffer[currentline]^) + length(linebuffer[currentline+1]^)) < maxwidth then
         begin
             linebuffer[currentline]^ := linebuffer[currentline]^ + linebuffer[currentline+1]^;
             quick_display(1, screenline, linebuffer [currentline]^);
@@ -582,30 +581,54 @@ end;
 
 procedure terminate;
 var
-    i: integer;
+    i, j: integer;
+    temp, number: linestring;
+    c: char;
+    
 begin
-    full_screen;
-    gotoxy(1, 25);
-    clreol;
-    gotoxy(1, 24);
-    clreol;
-    write('      Writing...');
+    fillchar(temp, sizeof(temp), ' ' ); 
+    temp := '(Y)es or (N)o?';
+    i := length(temp);
+    ErrorWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Write to file?');
+    GotoWindowXY (ErrorWindowPtr, 1, 1);
+    WriteWindow(ErrorWindowPtr, temp);
+    c := readkey;
+    EraseWindow(ErrorWindowPtr);
+    if upcase(c) = 'Y' then
+    begin
+        fillchar(temp, sizeof(temp), ' ' ); 
+        temp := concat('Writing file ', paramstr (1), '...');
+        i := length(temp);
+        ErrorWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Writing...');
+        GotoWindowXY (ErrorWindowPtr, 1, 1);
+        WriteWindow(ErrorWindowPtr, temp);
+        rewrite(textfile);
+        for i := 1 to highestline + 1 do
+        begin
+            if (i mod 100) = 0 then
+                write(#13, i);
 
-   rewrite(textfile);
-   for i := 1 to highestline + 1 do begin
-      if (i mod 100) = 0 then
-         write(#13,i);
+            writeln(textfile, linebuffer [i]^);
+        end;
+        EraseWindow(ErrorWindowPtr);
+        fillchar(temp, sizeof(temp), ' ' ); 
+        str(i, number);
+        temp := concat('Lines written to file ', paramstr (1), ': ', number, '.');
+        i := length(temp);
+        ErrorWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Lines');
+        GotoWindowXY (ErrorWindowPtr, 1, 1);
+        WriteWindow(ErrorWindowPtr, temp);
 
-      writeln(textfile, linebuffer [i]^);
-   end;
+        writeln(textfile,^Z);
+        close(textfile);
+        delay(1000);
 
-   write(#13,i);
-   writeln(textfile,^Z);
-   close(textfile);
-   write(#13);
-   clreol;
-   halt;
- end;
+        EraseWindow(ErrorWindowPtr);
+    end;
+    EraseWindow(EditWindowPtr);
+    clrscr;
+    halt;
+end;
 
  procedure quitnosave;
  begin
@@ -701,7 +724,7 @@ begin
  begin
     CursorOff;
     column := 1;
-    GotoWindowXY(EditWindowPtr, 1, WhereY);
+    GotoWindowXY(EditWindowPtr, column, WhereYWindow(EditWindowPtr));
     ClrEolWindow(EditWindowPtr);
 
     if (linebuffer[currentline] <> emptyline) then
@@ -909,17 +932,21 @@ begin
 procedure handlefunc(keynum: integer);
 begin
     case keynum of
-        8:   backspace;
-        9:   tabulate;
-        13:  return;
-        27:  escape;
-        11:  beginfile;
-        30:  CursorUp;
-        29:  CursorLeft;
-        28:  CursorRight;
-        31:  CursorDown;
-        18:  ins;
-        127: del;
+        BS          :   backspace;
+        TAB         :   tabulate;
+        ENTER       :   return;
+{        27:  escape;
+}
+        ESC         :   terminate;
+        HOME        :   beginline;
+        CLS         :   beginfile;
+        UpArrow     :   CursorUp;
+        LeftArrow   :   CursorLeft;
+        RightArrow  :   CursorRight;
+        DownArrow   :   CursorDown;
+        INSERT      :   ins;
+        DELETE      :   del;
+        CONTROLY    :   deleteline;
 (*
         271:  backtab;
         315:  help;
@@ -928,7 +955,6 @@ begin
         318:  replace;
         319:  terminate;
         320:  insertline;
-        321:  deleteline;
         324:  quitnosave;
         327:  column := 1;
         329:  funcpgup;

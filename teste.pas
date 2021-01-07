@@ -23,7 +23,7 @@
 
 program teste;
 
-var i : byte;
+var i : integer;
 
 function msx_version:byte;
 var versie:byte;
@@ -65,6 +65,9 @@ end;
 
 BEGIN
     writeln('MSX version: ', msx_version);
+    i := -20;
+    writeln ('i=',i, ' abs(i)=', abs(i));
+    
     for i := 1 to 20 do
         writeln(pressed_function_key);
        
