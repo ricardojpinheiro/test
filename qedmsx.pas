@@ -6,7 +6,7 @@
  * Adapted for MSX by Ricardo Jurczyk Pinheiro - 2020.
  *)
 
-program QedMSX;
+program QEDMSX;
 
 const
     maxlines    = 50;
@@ -170,7 +170,7 @@ procedure drawscreen;
 var
    i:  integer;
 begin
-   for i := 1 to 20 do
+   for i := 1 to 21 do
       quick_display(1 , i, linebuffer [currentline-screenline+i]^);
 end;
 
@@ -429,7 +429,7 @@ begin
     if screenline = 1 then
     begin
         gotoWindowXY(EditWindowPtr, 1, 1);
-        insline;
+        ScrollWindowDown(EditWindowPtr);
         quick_display(1, 1, linebuffer [currentline]^);
     end
     else
@@ -443,11 +443,11 @@ begin
         highestline := currentline;
 
     screenline := screenline + 1;
-    if screenline > 22 then
+    if screenline > 21 then
     begin
         GotoWindowXY(EditWindowPtr, 1, 1);
-        DelLineWindow(EditWindowPtr);
-        screenline := 22;
+        ScrollWindowUp(EditWindowPtr);
+        screenline := 21;
         quick_display(1, screenline, linebuffer [currentline]^);
     end;
 end;
@@ -793,51 +793,72 @@ end;
    beginfile;
  end;
 
- procedure search;
- var
-   temp:               linestring;
-   i,
-   pointer,
-   len:                integer;
- begin
-   init_msgline;
-   write('Search:     Enter string: <',searchstring,'> ');
-   temp := '';
-   readln(temp);
-   if temp <> '' then
-      searchstring := temp;
-   len := length (searchstring);
+procedure search;
+var
+    c                   : char;
+    temp                : linestring;
+    tempnumber          : string [5];
+    i, j, pointer, len  : integer;
 
-   if len = 0 then begin
-      displaykeys;
-      beginfile;
-      exit;
-   end;
+begin
+    temp := 'String to be searched: ';
+    j := length (temp);
+    ErrorWindowPtr := MakeWindow (1, 12, 79, 3, 'Search');
+    GotoWindowXY (ErrorWindowPtr, 1, 1);
+    WriteWindow(ErrorWindowPtr, temp);
+    GotoWindowXY (ErrorWindowPtr, j + 1, 1);
+    temp := '';
+    readln(temp);
+    EraseWindow(ErrorWindowPtr);
 
-   clrscr;
-   write('Searching...');
-   edit_win;
+    if temp <> '' then
+        searchstring := temp;
+    len := length (searchstring);
 
-   for i := currentline+1 to highestline do begin
-   (* look for matches on this line *)
-      pointer := pos (searchstring, linebuffer [i]^);
+    if len = 0 then
+    begin
+        beginfile;
+        exit;
+    end;
+
+    temp := 'Searching... Line ';
+    j := length (temp);
+    ErrorWindowPtr := MakeWindow (1, 12, 79, 3, 'Search');
+    GotoWindowXY (ErrorWindowPtr, 1, 1);
+    WriteWindow(ErrorWindowPtr, temp);
+
+    for i := currentline + 1 to highestline do
+    begin
+        fillchar (tempnumber, sizeof(tempnumber), ' ' );
+        Str(i, tempnumber);
+        GotoWindowXY (ErrorWindowPtr, j + 1, 1);
+        WriteWindow (ErrorWindowPtr, tempnumber);
+
+    (* look for matches on this line *)
+
+        pointer := pos (searchstring, linebuffer [i]^);
 
     (* if there was a match then get ready to print it *)
-      if (pointer > 0) then begin
-         currentline := i;
-         if currentline >= 12 then
-            screenline := 12
-         else
-            screenline := currentline;
-
-         drawscreen;
-         column := pointer;
-         displaykeys;
+        
+        if (pointer > 0) then
+        begin
+            currentline := i;
+            if currentline >= 22 then
+                screenline := 22
+            else
+                screenline := currentline;
+         
+            column := pointer;
+            EraseWindow (ErrorWindowPtr);
          exit;
-      end;
-   end;
-
-   ShowMessage('Search string not found.  Press any key to exit...');
+        end;
+    end;
+    temp := 'Search string not found. Press any key to exit.';
+    GotoWindowXY (ErrorWindowPtr, 1, 1);
+    ClrEolWindow (ErrorWindowPtr);
+    WriteWindow (ErrorWindowPtr, temp);
+    c := readkey;
+    EraseWindow (ErrorWindowPtr);
  end;
 
  procedure replace;
@@ -946,12 +967,12 @@ begin
         DownArrow   :   CursorDown;
         INSERT      :   ins;
         DELETE      :   del;
+        CONTROLF    :   search;
         CONTROLY    :   deleteline;
 (*
         271:  backtab;
         315:  help;
         316:  locate;
-        317:  search;
         318:  replace;
         319:  terminate;
         320:  insertline;
