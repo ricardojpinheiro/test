@@ -61,7 +61,7 @@ var
     insertmode:         boolean;
    
     EditWindowPtr,
-    ErrorWindowPtr    : Pointer;
+    StatusWindowPtr    : Pointer;
    
     FORCLR : Byte Absolute    $F3E9; { Foreground color                        }
     BAKCLR : Byte Absolute    $F3EA; { Background color                        }
@@ -158,13 +158,14 @@ end;
    edit_win;
  end;
 
- procedure ShowMessage(message : anystr);
- begin
-   init_msgline;
-   write(message);
-   WaitForKey;
-   displaykeys;
- end;
+procedure ShowMessage(message : anystr);
+begin
+    GotoXY(1, 24);
+    ClrEol;
+    write(message);
+    WaitForKey;
+    displaykeys;
+end;
 
 procedure drawscreen;
 var
@@ -208,12 +209,12 @@ end;
         fillchar(temp, sizeof(temp), ' ' ); 
         temp := concat('File not found: ', name);
         i := length(temp);
-        ErrorWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'ERROR!');
-        GotoWindowXY (ErrorWindowPtr, 1, 1);
-        WriteWindow(ErrorWindowPtr, temp);
+        StatusWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'ERROR!');
+        GotoWindowXY (StatusWindowPtr, 1, 1);
+        WriteWindow(StatusWindowPtr, temp);
         delay(1000);
         EraseWindow(EditWindowPtr);
-        EraseWindow(ErrorWindowPtr);
+        EraseWindow(StatusWindowPtr);
         clrscr;
         halt;
     end;
@@ -221,9 +222,9 @@ end;
     fillchar(temp, sizeof(temp), ' ' ); 
     temp := concat('Reading file ', name);
     i := length(temp);
-    ErrorWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Reading...');
-    gotoWindowXY (ErrorWindowPtr, 1, 1);
-    WriteWindow(ErrorWindowPtr, temp);
+    StatusWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Reading...');
+    gotoWindowXY (StatusWindowPtr, 1, 1);
+    WriteWindow(StatusWindowPtr, temp);
 
     for i := 1 to maxlines do
         if (linebuffer[i] <> emptyline) then
@@ -249,18 +250,18 @@ end;
             str(maxlines, tempint);
             temp := concat('File is too long for QED. Maximum of ', tempint, ' lines.');
             i := length(temp);
-            ErrorWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'ERROR!');
-            gotoWindowXY (ErrorWindowPtr, 1, 1);
-            WriteWindow(ErrorWindowPtr, temp);
+            StatusWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'ERROR!');
+            gotoWindowXY (StatusWindowPtr, 1, 1);
+            WriteWindow(StatusWindowPtr, temp);
             delay(1000);
             EraseWindow(EditWindowPtr);
-            EraseWindow(ErrorWindowPtr);
+            EraseWindow(StatusWindowPtr);
             clrscr;
             halt;
         end;
    end;
 
-    EraseWindow(ErrorWindowPtr);
+    EraseWindow(StatusWindowPtr);
     close(textfile);
 
     highestline := currentline + 1;
@@ -589,19 +590,19 @@ begin
     fillchar(temp, sizeof(temp), ' ' ); 
     temp := '(Y)es or (N)o?';
     i := length(temp);
-    ErrorWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Write to file?');
-    GotoWindowXY (ErrorWindowPtr, 1, 1);
-    WriteWindow(ErrorWindowPtr, temp);
+    StatusWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Write to file?');
+    GotoWindowXY (StatusWindowPtr, 1, 1);
+    WriteWindow(StatusWindowPtr, temp);
     c := readkey;
-    EraseWindow(ErrorWindowPtr);
+    EraseWindow(StatusWindowPtr);
     if upcase(c) = 'Y' then
     begin
         fillchar(temp, sizeof(temp), ' ' ); 
         temp := concat('Writing file ', paramstr (1), '...');
         i := length(temp);
-        ErrorWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Writing...');
-        GotoWindowXY (ErrorWindowPtr, 1, 1);
-        WriteWindow(ErrorWindowPtr, temp);
+        StatusWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Writing...');
+        GotoWindowXY (StatusWindowPtr, 1, 1);
+        WriteWindow(StatusWindowPtr, temp);
         rewrite(textfile);
         for i := 1 to highestline + 1 do
         begin
@@ -610,20 +611,20 @@ begin
 
             writeln(textfile, linebuffer [i]^);
         end;
-        EraseWindow(ErrorWindowPtr);
+        EraseWindow(StatusWindowPtr);
         fillchar(temp, sizeof(temp), ' ' ); 
         str(i, number);
         temp := concat('Lines written to file ', paramstr (1), ': ', number, '.');
         i := length(temp);
-        ErrorWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Lines');
-        GotoWindowXY (ErrorWindowPtr, 1, 1);
-        WriteWindow(ErrorWindowPtr, temp);
+        StatusWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Lines');
+        GotoWindowXY (StatusWindowPtr, 1, 1);
+        WriteWindow(StatusWindowPtr, temp);
 
         writeln(textfile,^Z);
         close(textfile);
         delay(1000);
 
-        EraseWindow(ErrorWindowPtr);
+        EraseWindow(StatusWindowPtr);
     end;
     EraseWindow(EditWindowPtr);
     clrscr;
@@ -791,7 +792,33 @@ end;
    ShowMessage('End of locate.  Press any key to exit...');
 
    beginfile;
- end;
+end;
+ 
+Function WhereXOverWindow (WindowPtr: Pointer; col: byte): byte;
+var
+    pt              : Pointer;
+    at              : integer absolute pt;
+
+begin
+
+    pt := WindowPtr;
+    WhereXOverWindow := Mem[at] + col + 1;
+
+end;    { WhereXOverWindow }
+
+Function WhereYOverWindow (WindowPtr: Pointer; row: byte): byte;
+var
+    pt              : Pointer;
+    at              : integer absolute pt;
+
+begin
+
+    pt := WindowPtr;
+    WhereYWindow := Mem[at + 1] + row;
+
+end;    { WhereYOverWindow }
+
+ 
 
 procedure search;
 var
@@ -801,15 +828,16 @@ var
     i, j, pointer, len  : integer;
 
 begin
+    SetBlinkRate (5, 0);
     temp := 'String to be searched: ';
     j := length (temp);
-    ErrorWindowPtr := MakeWindow (1, 12, 79, 3, 'Search');
-    GotoWindowXY (ErrorWindowPtr, 1, 1);
-    WriteWindow(ErrorWindowPtr, temp);
-    GotoWindowXY (ErrorWindowPtr, j + 1, 1);
+    StatusWindowPtr := MakeWindow (1, 12, 79, 3, 'Search');
+    GotoWindowXY (StatusWindowPtr, 1, 1);
+    WriteWindow(StatusWindowPtr, temp);
+    GotoWindowXY (StatusWindowPtr, j + 1, 1);
     temp := '';
     readln(temp);
-    EraseWindow(ErrorWindowPtr);
+    EraseWindow(StatusWindowPtr);
 
     if temp <> '' then
         searchstring := temp;
@@ -821,19 +849,14 @@ begin
         exit;
     end;
 
-    temp := 'Searching... Line ';
+    temp := 'Searching... ';
     j := length (temp);
-    ErrorWindowPtr := MakeWindow (1, 12, 79, 3, 'Search');
-    GotoWindowXY (ErrorWindowPtr, 1, 1);
-    WriteWindow(ErrorWindowPtr, temp);
+    GotoXY (1, 24);
+    ClrEol;
+    Write(temp);
 
     for i := currentline + 1 to highestline do
     begin
-        fillchar (tempnumber, sizeof(tempnumber), ' ' );
-        Str(i, tempnumber);
-        GotoWindowXY (ErrorWindowPtr, j + 1, 1);
-        WriteWindow (ErrorWindowPtr, tempnumber);
-
     (* look for matches on this line *)
 
         pointer := pos (searchstring, linebuffer [i]^);
@@ -849,105 +872,132 @@ begin
                 screenline := currentline;
          
             column := pointer;
-            EraseWindow (ErrorWindowPtr);
-         exit;
+
+            Blink(column + 1, screenline + 1, len);
+            c := readkey;
+            ClearBlink(column + 1, screenline + 1, len);
+
+            exit;
         end;
     end;
     temp := 'Search string not found. Press any key to exit.';
-    GotoWindowXY (ErrorWindowPtr, 1, 1);
-    ClrEolWindow (ErrorWindowPtr);
-    WriteWindow (ErrorWindowPtr, temp);
+    GotoXY (1, 24);
+    ClrEol;
+    Write (temp);
     c := readkey;
-    EraseWindow (ErrorWindowPtr);
- end;
+    ClearAllBlinks;
+    SetBlinkRate (3, 3);
+end;
 
  procedure replace;
  var
-   temp:               linestring;
-   position,
-   line,
-   len:                integer;
-   choice:             char;
+   temp                     : linestring;
+   tempnumber               : string [5];
+   i, j, position, line, replacementlength,
+   searchlength             : integer;
+   choice                   : char;
+   
  begin
-   init_msgline;
-   write('Replace:     Enter search string: <',searchstring,'> ');
-   temp := '';
-   readln(temp);
-   if temp <> '' then
-      searchstring := temp;
+    SetBlinkRate (5, 0);
+    
+    temp := 'Search for: ';
+    j := length (temp);
+    StatusWindowPtr := MakeWindow (1, 12, 79, 3, 'Replace');
+    GotoWindowXY (StatusWindowPtr, 1, 1);
+    WriteWindow(StatusWindowPtr, temp);
+    GotoWindowXY (StatusWindowPtr, j + 1, 1);
+    temp := '';
+    readln(temp);
+    ClrWindow(StatusWindowPtr);
 
-   len := length (searchstring);
-   if len = 0 then begin
-      displaykeys;
+    if temp <> '' then
+        searchstring := temp;
+
+    searchlength := length (searchstring);
+    if searchlength = 0 then
+    begin
+      EraseWindow(StatusWindowPtr);
       exit;
-   end;
+    end;
 
-   clrscr;          { clear the message line }
-   write('Replace:     Enter replacement string: <',replacement,'> ');
-   temp := '';
-   readln(temp);
-   if temp <> '' then
-      replacement := temp;
-   len := length (replacement);
+    temp := 'Replace with: ';
+    j := length (temp);
+    GotoWindowXY (StatusWindowPtr, 1, 1);
+    WriteWindow(StatusWindowPtr, temp);
+    GotoWindowXY (StatusWindowPtr, j + 1, 1);
+    temp := '';
+    readln(temp);
+    EraseWindow(StatusWindowPtr);
 
-   clrscr;          { clear the message line }
-   write('Searching...');
-   edit_win;
-   clrscr;
+    if temp <> '' then
+        replacement := temp;
+    replacementlength := length (replacement);
 
-   for line := 1 to highestline do begin
-      position := pos (searchstring, linebuffer [line]^);
+    temp := 'Searching... Line ';
+    j := length (temp);
+    GotoXY (1, 24);
+    ClrEol;
+    Write(temp);
 
-      while (position > 0) do begin
-         currentline := line;
-         if currentline >= 12 then
-            screenline := 12
-         else
-            screenline := currentline;
+    for line := 1 to highestline do
+    begin
+        position := pos (searchstring, linebuffer [line]^);
 
-         drawscreen;
-         column := position;
-         lowvideo;
-         gotoxy(column,screenline);
-         write(column,screenline,searchstring);
-         highvideo;
+        while (position > 0) do
+        begin
+            currentline := line;
+            if currentline >= 12 then
+                screenline := 12
+            else
+                screenline := currentline;
 
-         init_msgline;
-         write('Replace (Y/N/ESC)? ');
-         choice := readkey;
+            drawscreen;
+            column := position;
+            Blink(column + 1, screenline + 1, searchlength);
 
-         if ord (choice)= 27 then begin
-            displaykeys;
-            beginfile;
-            exit;
-         end;
+            GotoXY(1, 24);
+            write('Replace (Y/N/ESC)? ');
+            choice := readkey;
+            ClearBlink(column + 1, screenline + 1, searchlength);
 
-         clrscr;
-         write('Searching...');
-         edit_win;
-         gotoxy(1,line);
+            GotoXY(1, 24);
+            
+            if ord (choice) = 27 then
+            begin
+                ClrEol;
+                displaykeys;
+                beginfile;
+                exit;
+            end;
 
-         if choice in ['y','Y'] then begin
-            linebuffer[line]^ := copy (linebuffer [line]^, 1, position - 1) +
-                                   replacement +
-                                   copy (linebuffer [line]^, position +
-                                           length (searchstring), 128);
+            temp := 'Searching... Line ';
+            j := length (temp);
+            GotoXY (1, 24);
+            ClrEol;
+            Write(temp);
 
-            position := pos (searchstring, copy (linebuffer[line]^,
-                                position + len + 1,128)) +
-                            position + len;
-         end else
-            position := pos (searchstring, copy (linebuffer[line]^,
-                               position + length(searchstring) + 1,128)) +
-                          position + length(searchstring);
+            if choice in ['y','Y'] then
+            begin
+                linebuffer[line]^ := copy (linebuffer [line]^, 1, position - 1) +
+                                        replacement + copy (linebuffer [line]^, position +
+                                        length (searchstring), 128);
 
-         gotoxy(1,screenline);
-         clreol;
-         write(copy(linebuffer[currentline]^,1,79));
-      end;
-   end;
+                position := pos (searchstring, copy (linebuffer[line]^,
+                            position + replacementlength + 1,128)) +  position + replacementlength;
+            end
+            else
+                position := pos (searchstring, copy (linebuffer[line]^,
+                                position + length(searchstring) + 1,128)) +
+                                position + length(searchstring);
 
-   ShowMessage('End of replace.  Press any key to exit...');
+            GotoWindowXY(EditWindowPtr, 1, screenline);
+            ClrEolWindow(EditWindowPtr);
+            write(copy(linebuffer[currentline]^,1,79));
+        end;
+end;
+    temp := 'End of replace.  Press any key to exit.';
+    ShowMessage(temp);
+    SetBlinkRate(3, 3);
  end;
 
 procedure handlefunc(keynum: integer);
@@ -968,6 +1018,7 @@ begin
         INSERT      :   ins;
         DELETE      :   del;
         CONTROLF    :   search;
+        SELECT      :   replace;
         CONTROLY    :   deleteline;
 (*
         271:  backtab;
