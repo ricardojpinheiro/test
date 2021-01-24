@@ -1,24 +1,49 @@
-     1  Alexandre Costa
-     2  Alexandre da Silva Oliveira
-     3  Alex Figueiredo
-     4  Allison Takeo Tsuge
-     5  Carlucio Santos Cordeiro
-     6  Dante Nishida
-     7  Fabricio Biazzotto
-     8  Felipe Campos
-     9  Giovani Gualdi
-    10  Jonatas Silvestrini
-    11  Kleber Coelho
-    12  Luis Alberto Moreira da Costa
-    13  Luis Alberto Oze Jacob
-    14  Murilo Carmello
-    15  Pablo Vallares Valero
-    16  Paulo Sergio Maluf Junior
-    17  Rafael Rigues
-    18  Renato Cesar Navarro
-    19  Ricardo Oazem
-    20  Roberto Dondici Junior
-    21  Rogerio Garcia de Cristo 
-    22  Roque Lamenza Jr.
-    23  Valerio Luiz Durigan
-    24  Werner Augusto Roder Kai
+1 Alceu Morais Jr.
+2 Alexandre Amaral
+3 Alexandre Costa
+4 Alexandre Morgado
+5 Allison Takeo Tsuge
+6 Andre Luis Baptista da Silva
+7 Andre Simoes
+8 Bruno Drago
+9 Cesar Augusto Garcia da Cunha
+10 Daniel Faria Muniz
+11 Danilo Angelo
+12 Danilo Carlos Rodrigues
+13 Edson da Silva Mendes Junior
+14 Edson Fugio
+15 Edson Pereira da Silva
+16 Eliazer Kosciuk
+17 Emmanoel Ferreira
+18 Fernando Gallego Dias
+19 Glauco - irmao
+20 Italo Madeira
+21 Joao Carlos Garcia Arias
+22 Kleber Coelho
+23 Leandro Vital dos Santos
+24 Leonardo Moreira Alves da Silva
+25 Luciano Christofoletti
+26 Luciano Sturaro
+27 Luis Alberto Oze Jacob
+28 Marcelo Gomes
+29 Marcio Antonio Vicente Da Silva
+30 Marco Antonio Simon Dal Poz 
+31 Marcos Daniel Blanco de Oliveira
+32 Mario Cavalcanti
+33 Matheus Jose Geraldini dos Santos
+34 Mauro Veiga
+35 Murilo Carmello
+36 Neliton Pereira Junior
+37 Pablibiris (Marilza Silva Pereira)
+38 Paulo N. Correia Lima
+39 Paulo Sergio Maluf Junior
+40 Paulo Vinicius Wolski Radtke
+41 Renato Degiovani
+42 Ricardo De Souza Fernandes
+43 Roberto Dondici Junior
+44 Robson dos Santos Franca
+45 Rodrigo Domingues
+46 Roosevelt Santos Junior
+47 Uriel Agria Corbacho
+48 Victor Emmanuel J.S. Vicente
+49 Werner Augusto Roder Kai
