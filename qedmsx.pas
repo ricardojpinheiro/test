@@ -9,13 +9,17 @@
 program QEDMSX;
 
 const
-    maxlines    = 50;
+    CONTROLA    = 1;
     CONTROLB    = 2;
+    CONTROLC    = 3;
     CONTROLE    = 5;
     CONTROLF    = 6;
+    CONTROLJ    = 10;
     CONTROLK    = 11;
+    CONTROLL    = 12;
     CONTROLN    = 14;
     CONTROLP    = 16;
+    CONTROLQ    = 17;
     CONTROLV    = 22;
     CONTROLY    = 25;
     BS          = 8;
@@ -45,7 +49,9 @@ type
 {$i d:blink.inc}
 
 const
-    maxwidth = 78;
+    maxlines    = 50;
+    maxwidth    = 78;
+    maxlength   = 22;
 
 var
     currentline,
@@ -105,41 +111,41 @@ begin
     end;
 end;
 
- procedure WaitForKey;
- var
-   key : integer;
-   iscommand : boolean;
- begin
-   getkey(key, iscommand);
- end;
+procedure WaitForKey;
+var
+    key         : integer;
+   iscommand    : boolean;
+begin
+    getkey(key, iscommand);
+end;
 
- procedure init_msgline;
- begin
+procedure init_msgline;
+begin
     GotoXY(1, 24);
- end;
+end;
 
- procedure edit_win;
- begin
+procedure edit_win;
+begin
 (*
     EraseWindow(EditWindowPtr);
     EditWindowPtr := MakeWindow(0, 1, 80, 22, 'Quick Editor for MSX');
 *)
- end;
+end;
 
- procedure full_screen;
- begin
+procedure full_screen;
+begin
 (*
     EraseWindow(MainWindowPtr);
     MainWindowPtr := MakeWindow(1, 1, 80, 25, '');
 *)
- end;
+end;
 
- procedure quick_display(x,y: integer; s: linestring);
- begin
+procedure quick_display(x,y: integer; s: linestring);
+begin
     GotoWindowXY(EditWindowPtr, x, y);
     WriteWindow(EditWindowPtr, s);
     ClrEolWindow(EditWindowPtr);
- end;
+end;
 
  procedure displaykeys;
  begin
@@ -171,22 +177,9 @@ procedure drawscreen;
 var
    i:  integer;
 begin
-   for i := 1 to 21 do
-      quick_display(1 , i, linebuffer [currentline-screenline+i]^);
+   for i := 1 to (maxlength - 1) do
+      quick_display(1 , i, linebuffer [currentline - screenline + i]^);
 end;
-
- function replicate (count, ascii: integer): linestring;
- var
-   temp:               linestring;
-   i:                  byte;
- begin
-   temp := '';
-
-   for i := 1 to count do
-      temp := temp + chr (ascii);
-
-   replicate := temp;
- end;
 
  procedure newbuffer(var buf: lineptr);
  begin
@@ -252,10 +245,10 @@ end;
             i := length(temp);
             StatusWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'ERROR!');
             gotoWindowXY (StatusWindowPtr, 1, 1);
-            WriteWindow(StatusWindowPtr, temp);
+            WriteWindow (StatusWindowPtr, temp);
             delay(1000);
-            EraseWindow(EditWindowPtr);
-            EraseWindow(StatusWindowPtr);
+            EraseWindow (EditWindowPtr);
+            EraseWindow (StatusWindowPtr);
             clrscr;
             halt;
         end;
@@ -264,7 +257,7 @@ end;
     EraseWindow(StatusWindowPtr);
     close(textfile);
 
-    highestline := currentline + 1;
+    highestline := currentline;
     currentline := 1;
     column := 1;
     screenline := 1;
@@ -285,14 +278,6 @@ begin
     temp := concat('Quick Editor for MSX', ' - File: ', paramstr(1));
     EditWindowPtr := MakeWindow(0, 1, 80, 23, temp);
 (*   
-   full_screen;
-   gotoxy(1,1);
-   write(replicate (80, 205));
-   gotoxy(1,24);
-   write(replicate (80, 196));
-   gotoxy(12,1);
-   write(' Quick Editor ');
-
     SetBlinkColors(BAKCLR, FORCLR);
     SetBlinkRate(3, 0);
 *)    
@@ -399,8 +384,8 @@ end;
 
 procedure endfile;
 begin
-    currentline := highestline + 1;
-    screenline := 12;
+    currentline := highestline;
+    screenline := maxlength;
     column := 1;
     drawscreen;
 end;
@@ -435,29 +420,36 @@ begin
     end
     else
         screenline := screenline - 1;
+
+    gotoxy (1, 24); clreol; write ('Currentline: ', currentline, ' Highestline: ', highestline, ' Screenline: ', screenline);
+
 end;
 
 procedure CursorDown;
 begin
-    currentline := currentline + 1;
-    if currentline > highestline then
-        highestline := currentline;
+    if currentline >= (highestline - 1) then
+        exit;
+    
+    currentline :=  currentline + 1;
+    screenline  :=  screenline  + 1;
 
-    screenline := screenline + 1;
-    if screenline > 21 then
+    if screenline > (maxlength - 1) then
     begin
-        GotoWindowXY(EditWindowPtr, 1, 1);
+        GotoWindowXY(EditWindowPtr, 1, 2);
         ScrollWindowUp(EditWindowPtr);
-        screenline := 21;
+        screenline := maxlength - 1;
         quick_display(1, screenline, linebuffer [currentline]^);
     end;
+
+    gotoxy (1, 24); clreol; write ('Currentline: ', currentline, ' Highestline: ', highestline, ' Screenline: ', screenline);
+
 end;
 
 procedure insertline;
 var
     i : integer;
 begin
-    GotoWindowXY(EditWindowPtr, column, screenline + 1);
+    GotoWindowXY(EditWindowPtr, column, screenline);
     InsLineWindow(EditWindowPtr);
 
     for i := highestline + 1 downto currentline do
@@ -482,8 +474,8 @@ var
 begin
     DelLineWindow(EditWindowPtr);
 
-    if highestline > currentline +(23 - screenline) then
-        quick_display(1,22,linebuffer [currentline +(23 - screenline)]^);
+    if highestline > currentline + (maxlength - screenline) then
+        quick_display(1, maxlength,linebuffer [currentline + ((maxlength + 1) - screenline)]^);
 
     if linebuffer[currentline] <> emptyline then
         linebuffer[currentline]^ := emptyline^;
@@ -491,7 +483,7 @@ begin
     for i := currentline to highestline + 1 do
         linebuffer[i] := linebuffer [i + 1];
 
-    linebuffer [highestline+2] := emptyline;
+    linebuffer [highestline + 2] := emptyline;
     highestline := highestline - 1;
 
     if currentline > highestline then
@@ -653,7 +645,7 @@ end;
  procedure funcpgdn;
  begin
    currentline := currentline + 20;
-   if currentline+12 >= highestline then
+   if currentline + 12 >= highestline then
       endfile
    else
       drawscreen;
@@ -866,8 +858,8 @@ begin
         if (pointer > 0) then
         begin
             currentline := i;
-            if currentline >= 22 then
-                screenline := 22
+            if currentline >= maxlength then
+                screenline := maxlength
             else
                 screenline := currentline;
          
@@ -1010,19 +1002,30 @@ begin
 }
         ESC         :   terminate;
         HOME        :   beginline;
-        CLS         :   beginfile;
         UpArrow     :   CursorUp;
         LeftArrow   :   CursorLeft;
         RightArrow  :   CursorRight;
         DownArrow   :   CursorDown;
         INSERT      :   ins;
         DELETE      :   del;
-        CONTROLF    :   search;
+        CONTROLL    :   search;
         SELECT      :   replace;
         CONTROLY    :   deleteline;
+        CONTROLA    :   nextword;
+        CONTROLF    :   prevword;
+        CONTROLQ    :   beginfile;
+        CONTROLC    :   endfile;
+        CONTROLJ    :   help;
+(*
+        CONTROLK    :   begin  
+                            getkey (key, iscommand);
+                            if iscommand then
+                                case key of
+                                end;
+                        end;
+*)
 (*
         271:  backtab;
-        315:  help;
         316:  locate;
         318:  replace;
         319:  terminate;
@@ -1032,8 +1035,6 @@ begin
         329:  funcpgup;
         335:  funcend;
         337:  funcpgdn;
-        371:  prevword;
-        372:  nextword;
         374:  endfile;
 *)
 
