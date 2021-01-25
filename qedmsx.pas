@@ -177,8 +177,9 @@ procedure drawscreen;
 var
    i:  integer;
 begin
-   for i := 1 to (maxlength - 1) do
-      quick_display(1 , i, linebuffer [currentline - screenline + i]^);
+    ClrWindow(EditWindowPtr);
+    for i := 1 to (maxlength - 1) do
+        quick_display(1 , i, linebuffer [currentline - screenline + i]^);
 end;
 
  procedure newbuffer(var buf: lineptr);
@@ -303,30 +304,24 @@ begin
 end;
 
 procedure help;
+var
+    c: char;
 begin
-   clrscr;
-   quick_display(1, 1,'Quick editor commands:');
-   quick_display(5, 3,'<BACKSPACE>, <TAB>, <ENTER>, <HOME>, <END>, ');
-   quick_display(5, 4,'<PGUP>, <PGDN>, <DELETE>, <arrow keys>');
-   quick_display(5, 5,'  - These keys operate as expected');
-   quick_display(5, 7,'<ESC>       Erase current line');
-   quick_display(5, 8,'<INSERT>    Toggle insert/replace mode');
-   quick_display(5, 9,'CTL/LEFT    Previous word');
-   quick_display(5,10,'CTL/RIGHT   Next word');
-   quick_display(5,11,'CTL/PGUP    Top of file');
-   quick_display(5,12,'CTL/PGDN    End of file');
-   quick_display(5,13,'F1          Print these instructions');
-   quick_display(5,14,'F2          Locate all lines with a string');
-   quick_display(5,15,'F3          Search for a string');
-   quick_display(5,16,'F4          Global search and replace');
-   quick_display(5,17,'F5          Save file and quit');
-   quick_display(5,18,'F6          Insert blank line');
-   quick_display(5,19,'F7          Delete current line');
-   quick_display(5,20,'F10         Abort edit');
-
-   ShowMessage('Press any key to return to editing...');
-
-   drawscreen;
+    StatusWindowPtr := MakeWindow(10, 2, 60, 20, 'Help');
+    WritelnWindow(StatusWindowPtr, 'Commands:');
+    WritelnWindow(StatusWindowPtr, '<BS>, <TAB>, <ENTER>, <INSERT>, <DELETE>, <arrow keys>');
+    WritelnWindow(StatusWindowPtr, '<ESC>           - Terminate the program.');
+    WritelnWindow(StatusWindowPtr, '<INSERT>        - Toggle insert/overwrite mode.');
+    WritelnWindow(StatusWindowPtr, '<CONTROL><L>    - Search for a string.');
+    WritelnWindow(StatusWindowPtr, '<SELECT>        - Search and replace.');
+    WritelnWindow(StatusWindowPtr, '<CONTROL><Y>    - Delete line.');
+    WritelnWindow(StatusWindowPtr, '<CONTROL><A>    - Next word.');
+    WritelnWindow(StatusWindowPtr, '<CONTROL><F>    - Previous word.');
+    WritelnWindow(StatusWindowPtr, '<CONTROL><Q>    - Beginning of file.');
+    WritelnWindow(StatusWindowPtr, '<CONTROL><C>    - End of file.');
+    WritelnWindow(StatusWindowPtr, '<CONTROL><J>    - Help.');
+    c := readkey;
+    EraseWindow(StatusWindowPtr);
 end;
 
  procedure printrow;
@@ -340,7 +335,7 @@ end;
 procedure character(inkey : char);
 begin
     CursorOff;
-    if column = 79 then
+    if column > maxwidth then
         delay(30)
     else
     begin
@@ -353,7 +348,7 @@ begin
             linebuffer[currentline]^ := '';
         end;
 
-        while length(linebuffer[currentline]^) < column do
+        while length(linebuffer[currentline]^) <= column do
             linebuffer[currentline]^ := linebuffer[currentline]^ + ' ';
 
         insert(inkey, linebuffer [currentline]^, column);
@@ -447,9 +442,9 @@ end;
 
 procedure insertline;
 var
-    i : integer;
+    i: integer;
 begin
-    GotoWindowXY(EditWindowPtr, column, screenline);
+    GotoWindowXY(EditWindowPtr, column, screenline + 1);
     InsLineWindow(EditWindowPtr);
 
     for i := highestline + 1 downto currentline do
@@ -462,6 +457,7 @@ end;
 procedure return;
 begin
     CursorDown;
+    column := 1;
     GotoWindowXY(EditWindowPtr, column, screenline);
 
     if insertmode then
@@ -881,15 +877,15 @@ begin
     SetBlinkRate (3, 3);
 end;
 
- procedure replace;
- var
-   temp                     : linestring;
-   tempnumber               : string [5];
-   i, j, position, line, replacementlength,
-   searchlength             : integer;
-   choice                   : char;
+procedure replace;
+var
+    temp                     : linestring;
+    tempnumber               : string [5];
+    i, j, position, line, replacementlength,
+    searchlength             : integer;
+    choice                   : char;
    
- begin
+begin
     SetBlinkRate (5, 0);
     
     temp := 'Search for: ';
@@ -908,8 +904,8 @@ end;
     searchlength := length (searchstring);
     if searchlength = 0 then
     begin
-      EraseWindow(StatusWindowPtr);
-      exit;
+        EraseWindow(StatusWindowPtr);
+        exit;
     end;
 
     temp := 'Replace with: ';
@@ -924,12 +920,6 @@ end;
     if temp <> '' then
         replacement := temp;
     replacementlength := length (replacement);
-
-    temp := 'Searching... Line ';
-    j := length (temp);
-    GotoXY (1, 24);
-    ClrEol;
-    Write(temp);
 
     for line := 1 to highestline do
     begin
@@ -1061,7 +1051,7 @@ end;
 
 (* main loop - get a key and process it *)
 
-   repeat
+    repeat
         GotoWindowXY(EditWindowPtr, column, screenline);
         CursorOn;
         getkey (key, iscommand);
@@ -1071,7 +1061,7 @@ end;
         else
             character(chr(key));
 
-      printrow;
+        printrow;
 
    until true = false;
  end.

@@ -364,8 +364,9 @@ end;
    for i := highestline + 1 downto currentline do
       linebuffer[i + 1] := linebuffer [i];
 
+    highestline := highestline + 1;
    linebuffer[currentline] := emptyline;
-   highestline := highestline + 1;
+   
  end;
 
  procedure enter;
