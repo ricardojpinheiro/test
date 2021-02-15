@@ -12,16 +12,29 @@ const
     CONTROLA    = 1;
     CONTROLB    = 2;
     CONTROLC    = 3;
+    CONTROLD    = 4;
     CONTROLE    = 5;
     CONTROLF    = 6;
+    CONTROLG    = 7;
+    CONTROLH    = 8;
+    CONTROLI    = 9;
     CONTROLJ    = 10;
     CONTROLK    = 11;
     CONTROLL    = 12;
+    CONTROLM    = 13;
     CONTROLN    = 14;
+    CONTROLO    = 15;
     CONTROLP    = 16;
     CONTROLQ    = 17;
+    CONTROLR    = 18;
+    CONTROLS    = 19;
+    CONTROLT    = 20;
+    CONTROLU    = 21;
     CONTROLV    = 22;
+    CONTROLW    = 23;
+    CONTROLX    = 24;
     CONTROLY    = 25;
+    CONTROLZ    = 26;
     BS          = 8;
     TAB         = 9;
     HOME        = 11;
@@ -182,16 +195,16 @@ begin
         quick_display(1 , i, linebuffer [currentline - screenline + i]^);
 end;
 
- procedure newbuffer(var buf: lineptr);
- begin
+procedure newbuffer(var buf: lineptr);
+begin
     new(buf);
- end;
+end;
 
- procedure loadfile (name: linestring);
- var
+procedure loadfile (name: linestring);
+var
    i: integer;
    temp, tempint: linestring;
- begin
+begin
     edit_win;
     assign(textfile, name);
     {$i-}
@@ -263,7 +276,7 @@ end;
     column := 1;
     screenline := 1;
     drawscreen;
- end;
+end;
 
 procedure initialize;
 var
@@ -324,13 +337,13 @@ begin
     EraseWindow(StatusWindowPtr);
 end;
 
- procedure printrow;
- begin
+procedure printrow;
+begin
    full_screen;
    gotoxy(60, 1);
    write('line ', currentline:4,' col ', column:2);
    edit_win;
- end;
+end;
 
 procedure character(inkey : char);
 begin
@@ -394,11 +407,11 @@ begin
 end;
 
 
-procedure funcend;
+procedure endline;
 begin
     column := length (linebuffer [currentline]^) + 1;
-    if column > 78 then
-        column := 78;
+    if column > maxwidth then
+        column := maxwidth;
 end;
 
 procedure CursorUp;
@@ -493,7 +506,7 @@ begin
     if column < 1 then
     begin
         CursorUp;
-        funcend;
+        endline;
     end;
 end;
 
@@ -563,7 +576,7 @@ begin
     else
     begin
         CursorUp;
-        funcend;
+        endline;
     end;
     del;
 end;
@@ -619,38 +632,35 @@ begin
     halt;
 end;
 
- procedure quitnosave;
- begin
-   full_screen;
-   gotoxy(1, 25);
-   clreol;
-   gotoxy(1, 24);
-   clreol;
-   halt;
- end;
+procedure quitnosave;
+begin
+    EraseWindow(EditWindowPtr);
+    clrscr;
+    halt;
+end;
 
- procedure funcpgup;
- begin
-   currentline := currentline - 20;
+procedure PageUp;
+begin
+   currentline := currentline - maxlength - 2;
    if currentline <= screenline then
       beginfile
    else
       drawscreen;
  end;
 
- procedure funcpgdn;
- begin
-   currentline := currentline + 20;
-   if currentline + 12 >= highestline then
-      endfile
-   else
-      drawscreen;
- end;
+procedure PageDown;
+begin
+  currentline := currentline + maxlength - 2;
+  if currentline + 12 >= highestline then
+     endfile
+  else
+     drawscreen;
+end;
 
- procedure prevword;
- begin
+procedure prevword;
+begin
 (* if i am in a word then skip to the space *)
-   while (not ((linebuffer[currentline]^[column] = ' ') or
+    while (not ((linebuffer[currentline]^[column] = ' ') or
                (column >= length(linebuffer[currentline]^) ))) and
          ((currentline <> 1) or
           (column <> 1)) do
@@ -671,10 +681,10 @@ end;
       CursorLeft;
 
    CursorRight;
- end;
+end;
 
- procedure nextword;
- begin
+procedure nextword;
+begin
 (* if i am in a word, then move to the whitespace *)
    while (not ((linebuffer[currentline]^[column] = ' ') or
                (column >= length(linebuffer[currentline]^)))) and
@@ -686,31 +696,32 @@ end;
           (column >= length(linebuffer[currentline]^))) and
          (currentline < highestline) do
       CursorRight;
- end;
+end;
 
- procedure tabulate;
- begin
-    CursorOff;
-    if column < 79 then
+procedure tabulate;
+begin
+   CursorOff;
+   if column < 79 then
+   begin
+       repeat
+           column := column + 1;
+       until (tabset [column]= true) or (column = 79);
+   end;
+   CursorOn;
+end;
+
+procedure backtab;
+begin
+    if column > 1 then
     begin
         repeat
-            column := column + 1;
-        until (tabset [column]= true) or (column = 79);
+            column := column - 1;
+        until (tabset [column]= true) or (column = 1);
     end;
-    CursorOn;
- end;
+end;
 
- procedure backtab;
- begin
-   if column > 1 then begin
-      repeat
-         column := column - 1;
-      until (tabset [column]= true) or (column = 1);
-   end;
- end;
-
- procedure escape;
- begin
+procedure escape;
+begin
     CursorOff;
     column := 1;
     GotoWindowXY(EditWindowPtr, column, WhereYWindow(EditWindowPtr));
@@ -721,92 +732,73 @@ end;
 
     linebuffer[currentline] := emptyline;
     CursorOn;
- end;
-
- procedure locate;
- var
-   temp:               linestring;
-   i,
-   pointer,
-   position,
-   len:                integer;
- begin
-   init_msgline;
-   write('Locate:     Enter string: <',searchstring,'> ');
-   temp := '';
-   readln(temp);
-   if temp <> '' then
-      searchstring := temp;
-   len := length (searchstring);
-
-   if len = 0 then begin
-      displaykeys;
-      beginfile;
-      exit;
-   end;
-
-   clrscr;
-   write('Searching...  Press <ESC> to exit, <HOLD> to pause');
-   edit_win;
-   clrscr;
-
-   for i := 1 to highestline do begin
-   (* look for matches on this line *)
-      pointer := pos (searchstring, linebuffer [i]^);
-
-    (* if there was a match then get ready to print it *)
-      if (pointer > 0) then begin
-         temp := linebuffer [i]^;
-         position := pointer;
-         gotoxy(1, wherey);
-         lowvideo;
-         write(copy(temp,1,79));
-         highvideo;
-
-         (* print all of the matches on this line *)
-         while pointer > 0 do begin
-            gotoxy(position, wherey);
-            write(copy (temp, pointer, len));
-            temp := copy (temp, pointer + len + 1, 128);
-            pointer := pos (searchstring, temp);
-            position := position + pointer + len;
-         end;
-
-         (* go to next line and keep searching *)
-         writeln;
-      end;
-   end;
-
-   ShowMessage('End of locate.  Press any key to exit...');
-
-   beginfile;
 end;
- 
-Function WhereXOverWindow (WindowPtr: Pointer; col: byte): byte;
+
+procedure locate;
 var
-    pt              : Pointer;
-    at              : integer absolute pt;
+    temp                            : linestring;
+    i, j, pointer, position, len    : integer;
+    c                               : char;
 
 begin
+    SetBlinkRate (5, 0);
+    temp := 'String to be located: ';
+    j := length (temp);
+    StatusWindowPtr := MakeWindow (1, 12, 79, 3, 'Search');
+    GotoWindowXY (StatusWindowPtr, 1, 1);
+    WriteWindow(StatusWindowPtr, temp);
+    GotoWindowXY (StatusWindowPtr, j + 1, 1);
+    temp := '';
+    readln(temp);
 
-    pt := WindowPtr;
-    WhereXOverWindow := Mem[at] + col + 1;
+    if temp <> '' then
+        searchstring := temp;
+    len := length (searchstring);
 
-end;    { WhereXOverWindow }
+    if len = 0 then
+    begin
+        beginfile;
+        exit;
+    end;
 
-Function WhereYOverWindow (WindowPtr: Pointer; row: byte): byte;
-var
-    pt              : Pointer;
-    at              : integer absolute pt;
+    temp := 'Searching... ';
+    j := length (temp);
+    GotoXY (1, 24);
+    ClrEol;
+    Write(temp);
 
-begin
+    StatusWindowPtr := MakeWindow (1, 2, 79, 22, 'Located strings:');
+    GotoWindowXY (StatusWindowPtr, 1, 1);
 
-    pt := WindowPtr;
-    WhereYWindow := Mem[at + 1] + row;
+    for i := 1 to highestline do
+    begin
+    (* look for matches on this line *)
+        pointer := pos (searchstring, linebuffer [i]^);
 
-end;    { WhereYOverWindow }
+   (* if there was a match then get ready to print it *)
+        if (pointer > 0) then
+        begin
+            temp := linebuffer [i]^;
+            position := pointer;
+            WritelnWindow(StatusWindowPtr, copy(temp, 1, 79));
 
- 
+        (* print all of the matches on this line *)
+            while pointer > 0 do
+            begin
+                temp := copy (temp, pointer + len + 1, 128);
+                pointer := pos (searchstring, temp);
+                position := position + pointer + len;
+            end;
+
+        (* go to next line and keep searching *)
+        end;
+    end;
+
+    WritelnWindow(StatusWindowPtr, 'End of locate.  Press any key to exit...');
+    c := readkey;
+    ClrWindow(StatusWindowPtr);
+    beginfile;
+end;
 
 procedure search;
 var
@@ -817,7 +809,7 @@ var
 
 begin
     SetBlinkRate (5, 0);
-    temp := 'String to be searched: ';
+    temp := 'String to be found: ';
     j := length (temp);
     StatusWindowPtr := MakeWindow (1, 12, 79, 3, 'Search');
     GotoWindowXY (StatusWindowPtr, 1, 1);
@@ -983,6 +975,10 @@ end;
  end;
 
 procedure handlefunc(keynum: integer);
+var
+    key: integer;
+    iscommand : boolean;
+    
 begin
     case keynum of
         BS          :   backspace;
@@ -996,35 +992,29 @@ begin
         LeftArrow   :   CursorLeft;
         RightArrow  :   CursorRight;
         DownArrow   :   CursorDown;
+        CONTROLW    :   PageUp;
+        CONTROLS    :   PageDown;
         INSERT      :   ins;
         DELETE      :   del;
         CONTROLL    :   search;
-        SELECT      :   replace;
+        SELECT      :   replace;    { SELECT sera usado com combinacao de teclas }
         CONTROLY    :   deleteline;
         CONTROLA    :   nextword;
         CONTROLF    :   prevword;
         CONTROLQ    :   beginfile;
         CONTROLC    :   endfile;
         CONTROLJ    :   help;
-(*
-        CONTROLK    :   begin  
-                            getkey (key, iscommand);
-                            if iscommand then
-                                case key of
-                                end;
-                        end;
-*)
+        CONTROLX    :   terminate;
+        CONTROLZ    :   locate;
+        CONTROLB    :   endline;
+        CONTROLU    :   quitnosave;
+        CONTROLO    :   escape;
+        CONTROLP    :   backtab;
+
 (*
         271:  backtab;
-        316:  locate;
-        318:  replace;
-        319:  terminate;
         320:  insertline;
-        324:  quitnosave;
         327:  column := 1;
-        329:  funcpgup;
-        335:  funcend;
-        337:  funcpgdn;
         374:  endfile;
 *)
 

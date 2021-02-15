@@ -24,6 +24,7 @@
 program teste;
 
 var i : integer;
+    c : char;
 
 function msx_version:byte;
 var versie:byte;
@@ -67,12 +68,21 @@ BEGIN
     writeln('MSX version: ', msx_version);
     i := -20;
     writeln ('i=',i, ' abs(i)=', abs(i));
-    
+{    
     for i := 1 to 20 do
         writeln(pressed_function_key);
        
     for i := 1 to 20 do
         writeln(ord(readkey));
+}    
+    c := readkey;
+    if ord(c) = 11 then
+    begin
+        writeln('Control K');
+        c := readkey;
+        if ord(c) = 98 then
+            writeln('B');
+    end;
 
 END.
 
