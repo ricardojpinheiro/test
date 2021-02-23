@@ -77,6 +77,81 @@ begin
 end;
 
 Procedure MAPRALLC_and_MAPRRW;
+type
+    str80 = string[80];
+var
+    StringTest : array [1..10] of str80;
+    SegmentAllocated: array [1..10] of byte;
+    i, j: byte;
+    temp: str80;
+    Result: byte;
+
+begin
+    writeln('MAPRALLC and MAPRRW:');
+    for i := 1 to 3 do
+    begin
+        writeln('Allocating segment ', i, ' : ', AllocMapperSegment(Mapper, Mapper.nPriMapperSlot, UserSegment, SegmentId), 
+                ' Allocated segment: ', SegmentId);
+        SegmentAllocated[i] := SegmentId;
+    end;
+    for i := 1 to 3 do
+    begin
+        fillchar(temp, sizeof(temp), ' ');
+        fillchar(StringTest[i], sizeof(StringTest[i]), ' ');
+        for j := 1 to 40 do
+            temp[j] := chr(random(85) + 41);
+        move(temp, StringTest[i], sizeof(temp));
+        writeln('Text: ', StringTest[i]);
+    end;
+
+    writeln('Putting all the data on a array into Mapper - or trying to.');
+    PutMapperPageByAddress (Mapper, SegmentId, addr(StringTest));
+    writeln('They said it was done. Hope so.');
+    
+    writeln('Now, we are wiping out all data from the array.');
+    fillchar(StringTest, sizeof(StringTest), ' ');
+    writeln('Retrieving all the data to the same array, from Mapper - fingers crossed');
+    Result := GetMapperPageByAddress (Mapper, addr(StringTest));
+    writeln('Result: ', Result);
+    
+    for i := 1 to 3 do
+        writeln(' Text: ', StringTest[i]);
+
+{
+        move(temp, StringTest[i], sizeof(temp));
+        writeln('Text: ', StringTest[i]);
+        writeln('Saving it in the Mapper segment ', SegmentAllocated[i], '...');
+
+        temp := copy(StringTest[i], 1, sizeof(StringTest[i]));
+        
+        for j := addr(temp) to addr(temp) + sizeof(temp) do
+            AllRight := WriteMapperSegment(Mapper, SegmentAllocated[i], j, ord(temp[j - addr(temp)]));
+
+        writeln('Writing results: ', AllRight);
+    end;
+    
+        writeln('Releasing segment: ', FreeMapperSegment(Mapper, Mapper.nPriMapperSlot, SegmentId));
+
+    for i := 1 to 3 do
+    begin
+        fillchar(temp, sizeof(temp), ' ');
+        fillchar(StringTest[i], sizeof(StringTest[i]), ' ');
+
+        writeln('Text: ', StringTest[i]);
+        writeln('Reading it in the Mapper segment ', SegmentId, '... ');
+
+        for j := addr(temp) to addr(temp) + sizeof(temp) do
+            temp[j - addr(temp)] := chr(ReadMapperSegment(Mapper, SegmentAllocated[i], j));
+
+        StringTest[i] := copy(temp, 1, sizeof(temp));
+        
+        writeln('Text: ', StringTest[i]);
+    end;
+}
+end;
+
+{
+Procedure MAPRALLC_and_MAPRRW;
 begin
     writeln('MAPRALLC and MAPRRW:');
     writeln('Allocating segment: ', AllocMapperSegment(Mapper, Mapper.nPriMapperSlot, UserSegment, SegmentId));
@@ -100,7 +175,8 @@ begin
         StringTest[i - addr(StringTest)] := chr(ReadMapperSegment(Mapper, SegmentId, i));
         
     writeln('Text: ', StringTest);
-end;
+end; 
+}
 
 Procedure MAPRPAGE1;
 begin

@@ -1,12 +1,13 @@
 (*
- * quick editor
+ * nanomsx
  *
- * This is a simple and fast editor to use when you want to quickly
- * change a file.  It is not meant to be used as a programming editor
- * Adapted for MSX by Ricardo Jurczyk Pinheiro - 2020.
+ * This wannabe GNU nano-like text editor is based on Qed-Pascal
+ * (http://texteditors.org/cgi-bin/wiki.pl?action=browse&diff=1&id=Qed-Pascal).
+ * Our main approach is to have all GNU nano funcionalities. 
+ * MSX version by Ricardo Jurczyk Pinheiro - 2020/2021.
  *)
 
-program QEDMSX;
+program nanoMSX;
 
 const
     CONTROLA    = 1;
@@ -51,11 +52,14 @@ const
     DELETE      = 127;
 
 type
+    str81       = string[81];
     anystr      = string [255];
     linestring  = string [128];
     lineptr     = ^linestring;
-    Pointer	= ^Byte;
 
+{$i d:types.inc}
+{$i dos.inc}
+{$i dos2err.inc}
 {$i d:fastwrit.inc}
 {$i d:readvram.inc}
 {$i d:fillvram.inc}
@@ -63,9 +67,9 @@ type
 {$i d:blink.inc}
 
 const
-    maxlines    = 50;
+    maxlines    = 230;
     maxwidth    = 78;
-    maxlength   = 22;
+    maxlength   = 21;
 
 var
     currentline,
@@ -77,11 +81,14 @@ var
     tabset:             array [1..maxwidth] of boolean;
     textfile:           text;
     searchstring,
-    replacement:        linestring;
+    replacement:        str81;
     insertmode:         boolean;
+    
+    temp:               str81;
+    Registers:          TRegs;
    
     EditWindowPtr,
-    StatusWindowPtr    : Pointer;
+    StatusWindowPtr:    Pointer;
    
     FORCLR : Byte Absolute    $F3E9; { Foreground color                        }
     BAKCLR : Byte Absolute    $F3EA; { Background color                        }
@@ -98,6 +105,90 @@ begin
     Inline($f3/$fd/$2a/$c0/$fc/$DD/$21/$9F/00/$CD/$1c/00/$32/bt/$fb);
     readkey := chr(bt);
     qqc := 0;
+end;
+
+(* Finds the last occurence of a chat into a string. *)
+
+function LastPos(Character: char; Phrase: TString): integer;
+var
+    i: integer;
+    Found: boolean;
+begin
+    i := length(Phrase);
+    Found := false;
+    repeat
+        if Phrase[i] = Character then
+        begin
+            LastPos := i + 1;
+            Found := true;
+        end;
+        i := i - 1;
+    until Found = true;
+    if Not Found then LastPos := 0;
+end;
+
+procedure CheatAPPEND (FileName: TFileName);
+var
+    i, FirstTwoDotsFound, LastBackSlashFound: byte;
+    APPEND: string[7];
+    Path, Temporary: TFileName;
+begin
+
+(* Initializing some variables... *)
+
+    fillchar(Path, sizeof(Path), ' ' );
+    fillchar(Temporary, sizeof(Temporary), ' ' );
+    APPEND[0] := 'A';   APPEND[1] := 'P';   APPEND[2] := 'P';
+    APPEND[3] := 'E';   APPEND[4] := 'N';   APPEND[5] := 'D';
+    APPEND[6] := #0;
+    
+(*  Sees if in the path there is a ':', used with drive letter. *)    
+    
+    FirstTwoDotsFound := Pos (chr(58), FileName);
+
+(*  If there is a two dots...  *)
+    
+    if FirstTwoDotsFound <> 0 then
+    begin
+    
+(*  Let me see where is the last backslash character...  *)
+
+        LastBackSlashFound := LastPos (chr(92), FileName);
+        Path := copy (FileName, 1, LastBackSlashFound);
+
+(*  Copy the path to the variable. *)
+        
+        for i := 1 to LastBackSlashFound - 1 do
+            Temporary[i - 1] := Path[i];
+        Temporary[LastBackSlashFound] := #0;
+        Path := Temporary;
+
+(*  Sets the APPEND environment variable. *)
+        
+        with Registers do
+        begin
+            B := sizeof (Path);
+            C := ctSetEnvironmentItem;
+            HL := addr (APPEND);
+            DE := addr (Path);
+        end;
+        MSXBDOS (Registers);
+    end;
+end;
+
+(* Here we use MSX-DOS 2 to do the error handling. *)
+
+procedure ErrorCode (ExitsOrNot: boolean);
+var
+    ErrorCodeNumber: byte;
+    ErrorMessage: TMSXDOSString;
+    
+begin
+    ErrorCodeNumber := GetLastErrorCode;
+    GetErrorMessage (ErrorCodeNumber, ErrorMessage);
+    WriteLn (ErrorMessage);
+    if ExitsOrNot = true then
+        Exit;
 end;
 
 Procedure CursorOn;
@@ -132,6 +223,13 @@ begin
     getkey(key, iscommand);
 end;
 
+procedure ExitToDOS;
+begin
+    ClearAllBlinks;
+    clrscr;
+    halt;
+end;
+
 procedure quick_display(x,y: integer; s: linestring);
 begin
     GotoWindowXY(EditWindowPtr, x, y);
@@ -139,22 +237,57 @@ begin
     ClrEolWindow(EditWindowPtr);
 end;
 
-procedure displaykeys;
+procedure DisplayKeys (whichkey: byte);
+var
+    BlinkSequence: array [1..6] of byte;
+    Line1, Line2: string[80];
+    i, BlinkLength: byte;
+    
 begin
-   GotoXY(1, 24);
-   Write('1Help 2Locate 3Search 4Replace 5SaveQuit 6InsLine 7DelLine 0QuitNosave');
+    for i := 2 to 3 do
+        ClearBlink(1, maxlength + i, maxwidth);
+
+    fillchar(BlinkSequence, sizeof(BlinkSequence), 0);
+
+    case whichkey of
+        1:  begin
+                BlinkLength := 2;
+                BlinkSequence[1] := 1;  BlinkSequence[2] := 9;
+                BlinkSequence[3] := 22; BlinkSequence[4] := 34;
+                BlinkSequence[5] := 43; BlinkSequence[6] := 54;
+                Line1 := '^G Help ^O Write Out ^W Where Is ^K Cut   ^T Execute ^C Location  ';
+                Line2 := '^X Exit ^R Read File ^\ Replace  ^U Paste ^J Justify ^_ Go To Line';
+            end;
+        2:  begin
+                BlinkLength := 2;
+                BlinkSequence[1] := 1;  BlinkSequence[2] := 11;
+                BlinkSequence[3] := 24; BlinkSequence[4] := 37;
+                BlinkSequence[5] := 46;
+                Line1 := '^G Help   ~C Case Sens ~B Backwards ^P Older ^T Go To Line        ';
+                Line2 := '^C Cancel ~R Reg.Exp.  ^R Replace   ^N Newer ^X Exit              ';
+            end;
+
+    end;
+    WriteVRAM(0, (maxwidth + 2) * (maxlength + 1), Addr(Line1[1]), length(Line1));
+    WriteVRAM(0, (maxwidth + 2) * (maxlength + 2), Addr(Line2[1]), length(Line2));
+
+    for i := 1 to sizeof(BlinkSequence) do
+    begin
+        Blink(BlinkSequence[i], maxlength + 2, BlinkLength);
+        Blink(BlinkSequence[i], maxlength + 3, BlinkLength);
+    end;
 end;
 
 procedure ShowMessage(message : anystr);
 begin
-    GotoXY(1, 24);
+    GotoXY(1, maxlength + 1);
     ClrEol;
     write(message);
     WaitForKey;
-    displaykeys;
+    DisplayKeys (1);
 end;
 
-procedure drawscreen;
+procedure DrawScreen;
 var
    i:  integer;
 begin
@@ -171,7 +304,8 @@ end;
 procedure loadfile (name: linestring);
 var
    i: integer;
-   temp, tempint: linestring;
+   tempint: linestring;
+   
 begin
     assign(textfile, name);
     {$i-}
@@ -189,8 +323,7 @@ begin
         delay(1000);
         EraseWindow(EditWindowPtr);
         EraseWindow(StatusWindowPtr);
-        clrscr;
-        halt;
+        exittodos;
     end;
     
     fillchar(temp, sizeof(temp), ' ' ); 
@@ -208,9 +341,10 @@ begin
 
     while not eof (textfile) do
     begin
-        if (currentline mod 100) = 0 then
+{
+         if (currentline mod 100) = 0 then
             write(#13,currentline);
-
+}
         if linebuffer[currentline] = emptyline then
             newbuffer(linebuffer[currentline]);
 
@@ -230,8 +364,7 @@ begin
             delay(1000);
             EraseWindow (EditWindowPtr);
             EraseWindow (StatusWindowPtr);
-            clrscr;
-            halt;
+            exittodos;
         end;
    end;
 
@@ -248,21 +381,28 @@ end;
 procedure initialize;
 var
     i: integer;
-    temp: linestring;
+
 begin
     clrscr;
     ClearAllBlinks;
     SetBlinkColors(BAKCLR, FORCLR);
-    SetBlinkRate(3, 3);
+    SetBlinkRate(5, 0);
     
     fillchar(temp, sizeof(temp), ' ');
-    temp := concat('Quick Editor for MSX', ' - File: ', paramstr(1));
-    EditWindowPtr := MakeWindow(0, 1, 80, 23, temp);
+    temp := paramstr(1);
+    EditWindowPtr := MakeWindow(0, 1, 80, maxlength + 1, temp);
+
+    GotoXY(3, 1);
+    Write('nanoMSX 0.1');
+
+    Blink(2, 1, 78);
 (*   
     SetBlinkColors(BAKCLR, FORCLR);
     SetBlinkRate(3, 0);
-*)    
-    displaykeys;
+*)  
+
+
+    displaykeys (1);
 (*
 * Some variables.
 *)   
@@ -277,7 +417,7 @@ begin
     insertmode := false;
 
     for i := 1 to maxwidth do
-        tabset[i]:=(i mod 8)= 1;
+        tabset[i] := (i mod 8) = 1;
 
     for i := 1 to maxlines do
         linebuffer[i] := emptyline;
@@ -304,10 +444,27 @@ begin
     EraseWindow(StatusWindowPtr);
 end;
 
-procedure printrow;
+procedure StatusLine (message: linestring);
+var
+    i, lengthmessage, position: byte;
+    
 begin
-   gotoxy(60, 1);
-   write('line ', currentline:4,' col ', column:2);
+    ClearBlink(1, maxlength + 1, maxwidth + 2);
+    FillChar(temp, maxwidth + 3, #23);
+    temp[1] := #26; temp[maxwidth + 2] := #27;
+    WriteVram(0, (maxwidth + 2) * maxlength, Addr(temp[1]), maxwidth + 3);
+{    
+    GotoXY(1, maxlength + 1);
+    for i := 1 to maxlength + 1 do
+        write(#23);
+}
+    message := concat('[ ', message, ' ]');
+    lengthmessage := length(message);
+    position := (maxwidth - lengthmessage) div 2;
+
+    GotoXY(position, maxlength + 1);
+    FastWrite(message);
+    Blink(position, maxlength + 1, lengthmessage);
 end;
 
 procedure character(inkey : char);
@@ -540,7 +697,7 @@ end;
 procedure terminate;
 var
     i, j: integer;
-    temp, number: linestring;
+    number: linestring;
     c: char;
     
 begin
@@ -584,15 +741,13 @@ begin
         EraseWindow(StatusWindowPtr);
     end;
     EraseWindow(EditWindowPtr);
-    clrscr;
-    halt;
+    exittodos;
 end;
 
 procedure quitnosave;
 begin
     EraseWindow(EditWindowPtr);
-    clrscr;
-    halt;
+    exittodos;
 end;
 
 procedure PageUp;
@@ -692,7 +847,6 @@ end;
 
 procedure locate;
 var
-    temp                            : linestring;
     i, j, pointer, position, len    : integer;
     c                               : char;
 
@@ -719,7 +873,7 @@ begin
 
     temp := 'Searching... ';
     j := length (temp);
-    GotoXY (1, 24);
+    GotoXY (1, maxlength + 2);
     ClrEol;
     Write(temp);
 
@@ -756,43 +910,38 @@ begin
     beginfile;
 end;
 
-procedure search;
+procedure WhereIs;
 var
     c                   : char;
-    temp                : linestring;
-    tempnumber          : string [5];
     i, j, pointer, len  : integer;
-
+    tempsearchstring    : string[80];
+ 
 begin
-    SetBlinkRate (5, 0);
-    temp := 'String to be found: ';
-    j := length (temp);
-    StatusWindowPtr := MakeWindow (1, 12, 79, 3, 'Search');
-    GotoWindowXY (StatusWindowPtr, 1, 1);
-    WriteWindow(StatusWindowPtr, temp);
-    GotoWindowXY (StatusWindowPtr, j + 1, 1);
-    temp := '';
-    readln(temp);
-    EraseWindow(StatusWindowPtr);
-
-    if temp <> '' then
-        searchstring := temp;
-    len := length (searchstring);
-
-    if len = 0 then
-    begin
-        beginfile;
-        exit;
-    end;
-
-    temp := 'Searching... ';
-    j := length (temp);
-    GotoXY (1, 24);
+    DisplayKeys(2);
+    GotoXY(1, maxlength + 1);
     ClrEol;
-    Write(temp);
+    Blink(1, maxlength + 1, maxwidth + 2);
+    tempsearchstring := searchstring;
+    if searchstring <> '' then
+        temp := concat('Search [', tempsearchstring, ']: ')
+    else
+        temp := 'Search: ';
+        
+    FastWrite (temp);
+    read(searchstring);
 
+    if length (searchstring) = 0 then
+        if length(tempsearchstring) = 0 then
+        begin
+            beginfile;
+            exit;
+        end
+        else
+            searchstring := tempsearchstring;
+        
     for i := currentline + 1 to highestline do
     begin
+    
     (* look for matches on this line *)
 
         pointer := pos (searchstring, linebuffer [i]^);
@@ -806,28 +955,30 @@ begin
                 screenline := maxlength
             else
                 screenline := currentline;
-         
             column := pointer;
 
-            Blink(column + 1, screenline + 1, len);
-            c := readkey;
-            ClearBlink(column + 1, screenline + 1, len);
+    (*  Probleminha... Se estiver em outra página de texto, tem que fazer 
+    * scroll até lá. *)
 
+    (* Redraw the StatusLine, bottom of the window and display keys *)
+
+            ClearBlink(1, maxlength + 1, maxwidth + 2);
+            FillChar(temp, maxwidth + 3, #23);
+            temp[1] := #26; temp[maxwidth + 2] := #27;
+            WriteVram(0, (maxwidth + 2) * maxlength, Addr(temp[1]), maxwidth + 3);
+            DisplayKeys(1);
             exit;
         end;
     end;
-    temp := 'Search string not found. Press any key to exit.';
-    GotoXY (1, 24);
-    ClrEol;
-    Write (temp);
-    c := readkey;
-    ClearAllBlinks;
-    SetBlinkRate (3, 3);
+
+    ClearBlink(1, maxlength + 1, maxwidth + 2);
+    temp := concat(searchstring, ' not found');
+    StatusLine(temp);
+    DisplayKeys(1);
 end;
 
 procedure replace;
 var
-    temp                     : linestring;
     tempnumber               : string [5];
     i, j, position, line, replacementlength,
     searchlength             : integer;
@@ -885,24 +1036,24 @@ begin
             column := position;
             Blink(column + 1, screenline + 1, searchlength);
 
-            GotoXY(1, 24);
+            GotoXY(1, maxlength + 2);
             write('Replace (Y/N/ESC)? ');
             choice := readkey;
             ClearBlink(column + 1, screenline + 1, searchlength);
 
-            GotoXY(1, 24);
+            GotoXY(1, maxlength + 2);
             
             if ord (choice) = 27 then
             begin
                 ClrEol;
-                displaykeys;
+                displaykeys (1);
                 beginfile;
                 exit;
             end;
 
             temp := 'Searching... Line ';
             j := length (temp);
-            GotoXY (1, 24);
+            GotoXY (1, maxlength + 2);
             ClrEol;
             Write(temp);
 
@@ -948,11 +1099,11 @@ begin
         LeftArrow   :   CursorLeft;
         RightArrow  :   CursorRight;
         DownArrow   :   CursorDown;
-        CONTROLW    :   PageUp;
+        CONTROLD    :   PageUp;
         CONTROLS    :   PageDown;
         INSERT      :   ins;
         DELETE      :   del;
-        CONTROLD    :   search;
+        CONTROLW    :   WhereIs;
         SELECT      :   replace;    { SELECT sera usado com combinacao de teclas }
         CONTROLY    :   deleteline;
         CONTROLA    :   nextword;
@@ -979,20 +1130,23 @@ end;
 
 (* main *)
 
- var
-  key : integer;
-  iscommand : boolean;
+var
+    key: integer;
+    iscommand:  boolean;
 
- begin
+begin
+   
     if (paramcount <> 1) then
     begin
-        writeln('Usage: qedmsx FILENAME');
+        writeln('Usage: nanomsx FILENAME');
         halt;
     end;
 
     initialize;
     loadfile(paramstr (1));
-    printrow;
+    str(highestline, temp);
+    temp := concat('Read ', temp, ' lines.');
+    StatusLine (temp);
 
 (* main loop - get a key and process it *)
 
@@ -1006,7 +1160,6 @@ end;
         else
             character(chr(key));
 
-        printrow;
-
    until true = false;
+   ClearAllBlinks;
  end.

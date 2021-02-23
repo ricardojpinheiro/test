@@ -1,12 +1,13 @@
 (*
- * quick editor
+ * nanomsx
  *
- * This is a simple and fast editor to use when you want to quickly
- * change a file.  It is not meant to be used as a programming editor
- * Adapted for MSX by Ricardo Jurczyk Pinheiro - 2020.
+ * This wannabe GNU nano-like text editor is based on Qed-Pascal
+ * (http://texteditors.org/cgi-bin/wiki.pl?action=browse&diff=1&id=Qed-Pascal).
+ * Our main approach is to have all GNU nano funcionalities. 
+ * MSX version by Ricardo Jurczyk Pinheiro - 2020/2021.
  *)
 
-program QEDMSX;
+program nanoMSX;
 
 const
     CONTROLA    = 1;
@@ -54,25 +55,24 @@ type
     anystr      = string [255];
     linestring  = string [128];
     lineptr     = ^linestring;
-    Pointer	= ^Byte;
 
 {$i d:fastwrit.inc}
 {$i d:readvram.inc}
 {$i d:fillvram.inc}
-{$i d:txtwin.inc}
+{$i d:txtwin2.inc}
 {$i d:blink.inc}
 
 const
-    maxlines    = 50;
+    maxlines    = 230;
     maxwidth    = 78;
-    maxlength   = 22;
+    maxlength   = 21;
 
 var
     currentline,
     column,
     highestline,
     screenline:         integer;
-    linebuffer:         array [1.. maxlines] of lineptr;
+    linebuffer:         array [1.. maxlines] of lineptr absolute $C000;
     emptyline:          lineptr;
     tabset:             array [1..maxwidth] of boolean;
     textfile:           text;
@@ -141,13 +141,13 @@ end;
 
 procedure displaykeys;
 begin
-   GotoXY(1, 24);
+   GotoXY(1, maxlength + 2);
    Write('1Help 2Locate 3Search 4Replace 5SaveQuit 6InsLine 7DelLine 0QuitNosave');
 end;
 
 procedure ShowMessage(message : anystr);
 begin
-    GotoXY(1, 24);
+    GotoXY(1, maxlength + 1);
     ClrEol;
     write(message);
     WaitForKey;
@@ -208,9 +208,10 @@ begin
 
     while not eof (textfile) do
     begin
-        if (currentline mod 100) = 0 then
+{
+         if (currentline mod 100) = 0 then
             write(#13,currentline);
-
+}
         if linebuffer[currentline] = emptyline then
             newbuffer(linebuffer[currentline]);
 
@@ -249,15 +250,21 @@ procedure initialize;
 var
     i: integer;
     temp: linestring;
+
 begin
     clrscr;
     ClearAllBlinks;
     SetBlinkColors(BAKCLR, FORCLR);
-    SetBlinkRate(3, 3);
+    SetBlinkRate(5, 0);
     
     fillchar(temp, sizeof(temp), ' ');
-    temp := concat('Quick Editor for MSX', ' - File: ', paramstr(1));
-    EditWindowPtr := MakeWindow(0, 1, 80, 23, temp);
+    temp := paramstr(1);
+    EditWindowPtr := MakeWindow(0, 1, 80, maxlength + 1, temp);
+
+    GotoXY(3, 1);
+    Write('nanoMSX 0.1');
+
+    Blink(2, 1, 78);
 (*   
     SetBlinkColors(BAKCLR, FORCLR);
     SetBlinkRate(3, 0);
@@ -277,7 +284,7 @@ begin
     insertmode := false;
 
     for i := 1 to maxwidth do
-        tabset[i]:=(i mod 8)= 1;
+        tabset[i] := (i mod 8) = 1;
 
     for i := 1 to maxlines do
         linebuffer[i] := emptyline;
@@ -304,10 +311,17 @@ begin
     EraseWindow(StatusWindowPtr);
 end;
 
-procedure printrow;
+procedure StatusLine (message: linestring);
+var
+    lengthmessage, position: byte;
 begin
-   gotoxy(60, 1);
-   write('line ', currentline:4,' col ', column:2);
+    message := concat('[ ', message, ' ]');
+    lengthmessage := length(message);
+    position := (maxwidth - lengthmessage) div 2;
+
+    GotoXY(position, maxlength + 1);
+    FastWrite(message);
+    Blink(position, maxlength + 1, lengthmessage); 
 end;
 
 procedure character(inkey : char);
@@ -719,7 +733,7 @@ begin
 
     temp := 'Searching... ';
     j := length (temp);
-    GotoXY (1, 24);
+    GotoXY (1, maxlength + 2);
     ClrEol;
     Write(temp);
 
@@ -787,7 +801,7 @@ begin
 
     temp := 'Searching... ';
     j := length (temp);
-    GotoXY (1, 24);
+    GotoXY (1, maxlength + 2);
     ClrEol;
     Write(temp);
 
@@ -817,7 +831,7 @@ begin
         end;
     end;
     temp := 'Search string not found. Press any key to exit.';
-    GotoXY (1, 24);
+    GotoXY (1, maxlength + 1);
     ClrEol;
     Write (temp);
     c := readkey;
@@ -885,12 +899,12 @@ begin
             column := position;
             Blink(column + 1, screenline + 1, searchlength);
 
-            GotoXY(1, 24);
+            GotoXY(1, maxlength + 2);
             write('Replace (Y/N/ESC)? ');
             choice := readkey;
             ClearBlink(column + 1, screenline + 1, searchlength);
 
-            GotoXY(1, 24);
+            GotoXY(1, maxlength + 2);
             
             if ord (choice) = 27 then
             begin
@@ -902,7 +916,7 @@ begin
 
             temp := 'Searching... Line ';
             j := length (temp);
-            GotoXY (1, 24);
+            GotoXY (1, maxlength + 2);
             ClrEol;
             Write(temp);
 
@@ -952,7 +966,7 @@ begin
         CONTROLS    :   PageDown;
         INSERT      :   ins;
         DELETE      :   del;
-        CONTROLD    :   search;
+        CLS         :   search;
         SELECT      :   replace;    { SELECT sera usado com combinacao de teclas }
         CONTROLY    :   deleteline;
         CONTROLA    :   nextword;
@@ -979,20 +993,23 @@ end;
 
 (* main *)
 
- var
-  key : integer;
-  iscommand : boolean;
+var
+    key: integer;
+    iscommand:  boolean;
 
- begin
+begin
+   
     if (paramcount <> 1) then
     begin
-        writeln('Usage: qedmsx FILENAME');
+        writeln('Usage: nanomsx FILENAME');
         halt;
     end;
 
     initialize;
     loadfile(paramstr (1));
-    printrow;
+    replacement := '';
+    str(addr(linebuffer), replacement);
+    StatusLine (replacement);
 
 (* main loop - get a key and process it *)
 
@@ -1006,7 +1023,9 @@ end;
         else
             character(chr(key));
 
-        printrow;
+        replacement := '';
+        str(addr(linebuffer), replacement);
+        StatusLine (replacement);
 
    until true = false;
  end.
