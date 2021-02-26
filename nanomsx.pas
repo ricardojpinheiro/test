@@ -1090,7 +1090,9 @@ begin
         74, 106:    begin
 (* justify *)        
                     end;
-        else    exit;
+        else    begin
+                    DisplayKeys(main);
+                end;
     end;
 end;
 
