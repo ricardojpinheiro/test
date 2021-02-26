@@ -36,7 +36,7 @@ Begin
         );
 End;
 
-Procedure FastWrite (St : TString);
+Procedure FastWrite (St : anystr);
 Var
 	CSRX : Byte Absolute $F3DD;
     	CSRY : Byte Absolute $F3DC;
@@ -56,7 +56,7 @@ Begin
 End; {FastWrite}
 
 
-Procedure FastWriteln (St : TString);
+Procedure FastWriteln (St : anystr);
 Var
 	CSRX : Byte Absolute $F3DD;
 	CSRY : Byte Absolute $F3DC;

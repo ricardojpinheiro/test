@@ -52,14 +52,15 @@ const
     DELETE      = 127;
 
 type
-    str81       = string[81];
-    anystr      = string [255];
-    linestring  = string [128];
-    lineptr     = ^linestring;
+    str80               = string [80];
+    anystr              = string [255];
+    linestring          = string [128];
+    lineptr             = ^linestring;
+    KeystrokeLines      = (main, search, replace, align);
 
 {$i d:types.inc}
-{$i dos.inc}
-{$i dos2err.inc}
+{$i d:dos.inc}
+{$i d:dos2err.inc}
 {$i d:fastwrit.inc}
 {$i d:readvram.inc}
 {$i d:fillvram.inc}
@@ -73,18 +74,20 @@ const
 
 var
     currentline,
-    column,
     highestline,
     screenline:         integer;
+    column:             byte;
     linebuffer:         array [1.. maxlines] of lineptr;
     emptyline:          lineptr;
     tabset:             array [1..maxwidth] of boolean;
     textfile:           text;
     searchstring,
-    replacement:        str81;
+    replacestring,
+    filename, temp:     str80;
+    savedfile,
     insertmode:         boolean;
-    
-    temp:               str81;
+    tempnumber0:        string[5];
+
     Registers:          TRegs;
    
     EditWindowPtr,
@@ -94,20 +97,20 @@ var
     BAKCLR : Byte Absolute    $F3EA; { Background color                        }
     BDRCLR : Byte Absolute    $F3EB; { Border color                            }
 
-function Readkey : char;
+function Readkey: char;
 var
     bt: integer;
     qqc: byte absolute $FCA9;
  
 begin
-    readkey := chr(0);
+    Readkey := chr(0);
     qqc := 1;
     Inline($f3/$fd/$2a/$c0/$fc/$DD/$21/$9F/00/$CD/$1c/00/$32/bt/$fb);
-    readkey := chr(bt);
+    Readkey := chr(bt);
     qqc := 0;
 end;
 
-(* Finds the last occurence of a chat into a string. *)
+(* Finds the last occurence of a char into a string. *)
 
 function LastPos(Character: char; Phrase: TString): integer;
 var
@@ -203,44 +206,48 @@ End;
 
 (* Return true if a key waiting, and the key. *)
 
-procedure getkey (var key: integer; var iscommand: boolean);
+procedure GetKey (var key: byte; var iscommand: boolean);
 var
     inkey : char;
 begin
-    iscommand := false;
-    inkey := readkey;
-    key := ord(inkey);
+    iscommand   := false;
+    inkey       := readkey;
+    key         := ord(inkey);
     case key of
         1..31, 127: iscommand := true;
     end;
 end;
 
-procedure WaitForKey;
-var
-    key         : integer;
-   iscommand    : boolean;
-begin
-    getkey(key, iscommand);
-end;
-
-procedure ExitToDOS;
-begin
-    ClearAllBlinks;
-    clrscr;
-    halt;
-end;
-
-procedure quick_display(x,y: integer; s: linestring);
+procedure quick_display(x, y: integer; s: linestring);
 begin
     GotoWindowXY(EditWindowPtr, x, y);
-    WriteWindow(EditWindowPtr, s);
+    WriteWindow (EditWindowPtr, s);
     ClrEolWindow(EditWindowPtr);
 end;
 
-procedure DisplayKeys (whichkey: byte);
+procedure StatusLine (message: str80);
+var
+    i, lengthmessage, position: byte;
+    
+begin
+    ClearBlink(1, maxlength + 1, maxwidth + 2);
+    FillChar(temp, maxwidth + 3, #23);
+    temp[1] := #26;     temp[maxwidth + 2] := #27;
+    WriteVram(0, (maxwidth + 2) * maxlength, Addr(temp[1]), maxwidth + 3);
+
+    message := concat('[ ', message, ' ]');
+    lengthmessage := length(message);
+    position := (maxwidth - lengthmessage) div 2;
+
+    GotoXY(position, maxlength + 1);
+    FastWrite(message);
+    Blink(position, maxlength + 1, lengthmessage);
+end;
+
+procedure DisplayKeys (whichkey: KeystrokeLines);
 var
     BlinkSequence: array [1..6] of byte;
-    Line1, Line2: string[80];
+    Line1, Line2: str80;
     i, BlinkLength: byte;
     
 begin
@@ -250,23 +257,34 @@ begin
     fillchar(BlinkSequence, sizeof(BlinkSequence), 0);
 
     case whichkey of
-        1:  begin
-                BlinkLength := 2;
-                BlinkSequence[1] := 1;  BlinkSequence[2] := 9;
-                BlinkSequence[3] := 22; BlinkSequence[4] := 34;
-                BlinkSequence[5] := 43; BlinkSequence[6] := 54;
-                Line1 := '^G Help ^O Write Out ^W Where Is ^K Cut   ^T Execute ^C Location  ';
-                Line2 := '^X Exit ^R Read File ^\ Replace  ^U Paste ^J Justify ^_ Go To Line';
-            end;
-        2:  begin
-                BlinkLength := 2;
-                BlinkSequence[1] := 1;  BlinkSequence[2] := 11;
-                BlinkSequence[3] := 24; BlinkSequence[4] := 37;
-                BlinkSequence[5] := 46;
-                Line1 := '^G Help   ~C Case Sens ~B Backwards ^P Older ^T Go To Line        ';
-                Line2 := '^C Cancel ~R Reg.Exp.  ^R Replace   ^N Newer ^X Exit              ';
-            end;
-
+        main:       begin
+                        BlinkLength := 2;
+                        BlinkSequence[1] := 1;  BlinkSequence[2] := 9;
+                        BlinkSequence[3] := 22; BlinkSequence[4] := 34;
+                        BlinkSequence[5] := 43; BlinkSequence[6] := 54;
+                        Line1 := '^G Help ^O Write Out ^W Where Is ^K Cut   ^T Execute ^C Location  ';
+                        Line2 := '^Z Exit ^R Read File ^N Replace  ^U Paste ^J Justify ^_ Go To Line';
+                    end;
+        search:     begin
+                        BlinkLength := 2;
+                        BlinkSequence[1] := 1;  BlinkSequence[2] := 11;
+                        BlinkSequence[3] := 24; BlinkSequence[4] := 37;
+                        BlinkSequence[5] := 46;
+                        Line1 := '^G Help   ~C Case Sens ~B Backwards ^P Older ^T Go To Line        ';
+                        Line2 := '^C Cancel ~R Reg.Exp.  ^E Replace   ^N Newer ^X Exit              ';
+                    end;
+        replace:    begin
+                        BlinkLength := 2;
+                        BlinkSequence[1] := 1;  BlinkSequence[2] := 15;
+                        Line1 := ' Y Yes         A All                                              ';
+                        Line2 := ' N No         ^C Cancel                                           ';
+                    end;
+        align:      begin
+                        BlinkLength := 2;
+                        BlinkSequence[1] := 1;  BlinkSequence[2] := 15;
+                        Line1 := ' L Left        C Center                                            ';
+                        Line2 := ' R Right       J Justify                                           ';
+                    end;
     end;
     WriteVRAM(0, (maxwidth + 2) * (maxlength + 1), Addr(Line1[1]), length(Line1));
     WriteVRAM(0, (maxwidth + 2) * (maxlength + 2), Addr(Line2[1]), length(Line2));
@@ -278,15 +296,6 @@ begin
     end;
 end;
 
-procedure ShowMessage(message : anystr);
-begin
-    GotoXY(1, maxlength + 1);
-    ClrEol;
-    write(message);
-    WaitForKey;
-    DisplayKeys (1);
-end;
-
 procedure DrawScreen;
 var
    i:  integer;
@@ -296,89 +305,78 @@ begin
         quick_display(1 , i, linebuffer [currentline - screenline + i]^);
 end;
 
-procedure newbuffer(var buf: lineptr);
+procedure NewBuffer (var buf: lineptr);
 begin
     new(buf);
 end;
 
-procedure loadfile (name: linestring);
+procedure ReadFile (name: str80);
 var
-   i: integer;
-   tempint: linestring;
-   
+    i: integer;
+    maxlinesnotreached: boolean;
+
 begin
+    maxlinesnotreached := false;
+    
     assign(textfile, name);
     {$i-}
     reset(textfile);
     {$i+}
 
     if (ioresult <> 0) then
+        StatusLine('New file')
+    else
     begin
-        fillchar(temp, sizeof(temp), ' ' ); 
-        temp := concat('File not found: ', name);
-        i := length(temp);
-        StatusWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'ERROR!');
-        GotoWindowXY (StatusWindowPtr, 1, 1);
-        WriteWindow(StatusWindowPtr, temp);
-        delay(1000);
-        EraseWindow(EditWindowPtr);
-        EraseWindow(StatusWindowPtr);
-        exittodos;
-    end;
-    
-    fillchar(temp, sizeof(temp), ' ' ); 
-    temp := concat('Reading file ', name);
-    i := length(temp);
-    StatusWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Reading...');
-    gotoWindowXY (StatusWindowPtr, 1, 1);
-    WriteWindow(StatusWindowPtr, temp);
+        for i := 1 to maxlines do
+            if (linebuffer[i] <> emptyline) then
+                linebuffer[i]^ := emptyline^;
 
-    for i := 1 to maxlines do
-        if (linebuffer[i] <> emptyline) then
-            linebuffer[i]^ := emptyline^;
+        currentline := 1;
 
-    currentline := 1;
-
-    while not eof (textfile) do
-    begin
-{
-         if (currentline mod 100) = 0 then
-            write(#13,currentline);
-}
-        if linebuffer[currentline] = emptyline then
-            newbuffer(linebuffer[currentline]);
-
-        readln(textfile, linebuffer [currentline]^);
-
-        currentline := currentline + 1;
-        if (currentline > maxlines) then
+        while not eof (textfile) do
         begin
-            fillchar(temp, sizeof(temp), ' ' );
-            fillchar(tempint, sizeof(tempint), ' ' );
-            str(maxlines, tempint);
-            temp := concat('File is too long for QED. Maximum of ', tempint, ' lines.');
-            i := length(temp);
-            StatusWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'ERROR!');
-            gotoWindowXY (StatusWindowPtr, 1, 1);
-            WriteWindow (StatusWindowPtr, temp);
-            delay(1000);
-            EraseWindow (EditWindowPtr);
-            EraseWindow (StatusWindowPtr);
-            exittodos;
-        end;
-   end;
 
-    EraseWindow(StatusWindowPtr);
+            if (currentline mod 100) = 0 then
+                write(#13, currentline);
+
+            if linebuffer[currentline] = emptyline then
+                NewBuffer(linebuffer[currentline]);
+
+            readln(textfile, linebuffer [currentline]^);
+
+            currentline := currentline + 1;
+            
+            if (currentline > maxlines) then
+            begin
+                maxlinesnotreached := true;
+                exit;
+            end;
+        end;
+        
+(*  Resolver depois: Se o arquivo for grande demais pro editor, ler 
+*   somente a parte que dá pra ler e parar.*)
+        
+        str(currentline - 1, tempnumber0);
+
+        if maxlinesnotreached then
+            temp := concat('File is too long. Read ', tempnumber0, ' lines. ')
+        else
+            temp := concat('Read ', tempnumber0, ' lines.');
+
+        StatusLine (temp);
+    end;
+
     close(textfile);
 
     highestline := currentline;
     currentline := 1;
-    column := 1;
-    screenline := 1;
-    drawscreen;
+    column      := 1;
+    screenline  := 1;
+
+    DrawScreen;
 end;
 
-procedure initialize;
+procedure InitTextEditor;
 var
     i: integer;
 
@@ -389,32 +387,27 @@ begin
     SetBlinkRate(5, 0);
     
     fillchar(temp, sizeof(temp), ' ');
-    temp := paramstr(1);
-    EditWindowPtr := MakeWindow(0, 1, 80, maxlength + 1, temp);
+    EditWindowPtr := MakeWindow(0, 1, maxwidth + 2, maxlength + 1, filename);
 
     GotoXY(3, 1);
-    Write('nanoMSX 0.1');
+    FastWrite('nanoMSX 0.1');
 
-    Blink(2, 1, 78);
-(*   
-    SetBlinkColors(BAKCLR, FORCLR);
-    SetBlinkRate(3, 0);
-*)  
+    Blink(2, 1, maxwidth);
 
+    DisplayKeys (main);
 
-    displaykeys (1);
-(*
-* Some variables.
-*)   
-    currentline := 1;
-    column := 1;
-    screenline := 1;
-    highestline := 1;
-    newbuffer(emptyline);
-    emptyline^ := '';
-    searchstring := '';
-    replacement := '';
-    insertmode := false;
+(*  Some variables. *)   
+
+    currentline     := 1;
+    column          := 1;
+    screenline      := 1;
+    highestline     := 1;
+    NewBuffer(emptyline);
+    emptyline^      := '';
+    searchstring    := '';
+    replacestring   := '';
+    insertmode      := false;
+    savedfile       := false;
 
     for i := 1 to maxwidth do
         tabset[i] := (i mod 8) = 1;
@@ -423,48 +416,36 @@ begin
         linebuffer[i] := emptyline;
 end;
 
-procedure help;
+procedure Help;
 var
     c: char;
 begin
-    StatusWindowPtr := MakeWindow(10, 2, 60, 20, 'Help');
+    ClearBlink(1, maxlength + 1, maxwidth + 2);
+    StatusWindowPtr := MakeWindow(0, 1, maxwidth + 2, maxlength + 1, 'Main nanoMSX help text');
     WritelnWindow(StatusWindowPtr, 'Commands:');
-    WritelnWindow(StatusWindowPtr, '<BS>, <TAB>, <ENTER>, <INSERT>, <DELETE>, <arrow keys>');
-    WritelnWindow(StatusWindowPtr, '<ESC>           - Terminate the program.');
-    WritelnWindow(StatusWindowPtr, '<INSERT>        - Toggle insert/overwrite mode.');
-    WritelnWindow(StatusWindowPtr, '<CONTROL><L>    - Search for a string.');
-    WritelnWindow(StatusWindowPtr, '<SELECT>        - Search and replace.');
-    WritelnWindow(StatusWindowPtr, '<CONTROL><Y>    - Delete line.');
-    WritelnWindow(StatusWindowPtr, '<CONTROL><A>    - Next word.');
-    WritelnWindow(StatusWindowPtr, '<CONTROL><F>    - Previous word.');
-    WritelnWindow(StatusWindowPtr, '<CONTROL><Q>    - Beginning of file.');
-    WritelnWindow(StatusWindowPtr, '<CONTROL><C>    - End of file.');
-    WritelnWindow(StatusWindowPtr, '<CONTROL><J>    - Help.');
+    WritelnWindow(StatusWindowPtr, 'TODO Ctrl-S - Save current file.     Ctrl-O - Offer to write file ("Save as").');
+    WritelnWindow(StatusWindowPtr, 'TODO Ctrl-R - Read new file.            Ctrl+Z - Close buffer, exit from nano.');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+G - Display help text               TODO Ctrl+C - Report cursor position.');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+A - To start of line. Ctrl+Y - One page up.   Ctrl+F - One word backward.');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+E - To end of line.   Ctrl+V - One page down. Ctrl+D - One word forward.');
+    WritelnWindow(StatusWindowPtr, 'TAB - Indent marked region                SELECT+TAB - Unindent marked region.');
+    WritelnWindow(StatusWindowPtr, 'Cursor right - One character forward.              Cursor up    - One line up.');
+    WritelnWindow(StatusWindowPtr, 'Cursor left  - One character backward            Cursor down  - One line down.');
+    WritelnWindow(StatusWindowPtr, 'HOME - To start of file.                        Ctrl+W - Start forward search.');
+    WritelnWindow(StatusWindowPtr, 'CLS - To end of file.                     TODO Ctrl+Q - Start backward search.');
+    WritelnWindow(StatusWindowPtr, 'TODO Ctrl+J - Align line.                  Ctrl+N - Start a replacing session.');
+    WritelnWindow(StatusWindowPtr, 'BS - Delete character before cursor.      DEL - Delete character under cursor.');
+    WritelnWindow(StatusWindowPtr, 'SELECT-DEL - Delete current line.');
+{
+    WritelnWindow(StatusWindowPtr, '');
+    WritelnWindow(StatusWindowPtr, '');
+    WritelnWindow(StatusWindowPtr, '');
+    WritelnWindow(StatusWindowPtr, '');
+    WritelnWindow(StatusWindowPtr, '');
+    WritelnWindow(StatusWindowPtr, '');
+}
     c := readkey;
     EraseWindow(StatusWindowPtr);
-end;
-
-procedure StatusLine (message: linestring);
-var
-    i, lengthmessage, position: byte;
-    
-begin
-    ClearBlink(1, maxlength + 1, maxwidth + 2);
-    FillChar(temp, maxwidth + 3, #23);
-    temp[1] := #26; temp[maxwidth + 2] := #27;
-    WriteVram(0, (maxwidth + 2) * maxlength, Addr(temp[1]), maxwidth + 3);
-{    
-    GotoXY(1, maxlength + 1);
-    for i := 1 to maxlength + 1 do
-        write(#23);
-}
-    message := concat('[ ', message, ' ]');
-    lengthmessage := length(message);
-    position := (maxwidth - lengthmessage) div 2;
-
-    GotoXY(position, maxlength + 1);
-    FastWrite(message);
-    Blink(position, maxlength + 1, lengthmessage);
 end;
 
 procedure character(inkey : char);
@@ -479,7 +460,7 @@ begin
 
         if linebuffer[currentline] = emptyline then
         begin
-            newbuffer(linebuffer[currentline]);
+            NewBuffer(linebuffer[currentline]);
             linebuffer[currentline]^ := '';
         end;
 
@@ -498,40 +479,39 @@ begin
 
 (* ding the bell when close to the end of a line *)
 
-        if column = 70 then
+        if column >= 78 then
             delay(10);
     end;
     CursorOn;
 end;
 
-procedure beginfile;
+procedure BeginFile;
 begin
     currentline := 1;
-    column := 1;
-    screenline := 1;
-    drawscreen;
+    column      := 1;
+    screenline  := 1;
+    DrawScreen;
 end;
 
-procedure endfile;
+procedure EndFile;
 begin
     currentline := highestline;
-    screenline := maxlength;
-    column := 1;
-    drawscreen;
+    screenline  := maxlength;
+    column      := 1;
+    DrawScreen;
 end;
 
-procedure beginline;
+procedure BeginLine;
 begin
     currentline := WhereYWindow(EditWindowPtr);
-    column := 1;
-    screenline := WhereYWindow(EditWindowPtr);
-    drawscreen;
+    column      := 1;
+    screenline  := WhereYWindow(EditWindowPtr);
+    DrawScreen;
 end;
 
-
-procedure endline;
+procedure EndLine;
 begin
-    column := length (linebuffer [currentline]^) + 1;
+    column      := length (linebuffer [currentline]^) + 1;
     if column > maxwidth then
         column := maxwidth;
 end;
@@ -569,7 +549,7 @@ begin
     end;
 end;
 
-procedure insertline;
+procedure InsertLine;
 var
     i: integer;
 begin
@@ -583,14 +563,14 @@ begin
     highestline := highestline + 1;
 end;
 
-procedure return;
+procedure Return;
 begin
     CursorDown;
     column := 1;
     GotoWindowXY(EditWindowPtr, column, screenline);
 
     if insertmode then
-        insertline;
+        InsertLine;
 end;
 
 procedure deleteline;
@@ -622,7 +602,7 @@ begin
     if column < 1 then
     begin
         CursorUp;
-        endline;
+        EndLine;
     end;
 end;
 
@@ -668,7 +648,7 @@ begin
 
     if linebuffer[currentline] = emptyline then
     begin
-        newbuffer(linebuffer[currentline]);
+        NewBuffer(linebuffer[currentline]);
         linebuffer[currentline]^ := '';
     end;
 
@@ -689,83 +669,83 @@ begin
     else
     begin
         CursorUp;
-        endline;
+        EndLine;
     end;
     del;
 end;
 
-procedure terminate;
+procedure WriteOut;
 var
-    i, j: integer;
-    number: linestring;
-    c: char;
+    i: integer;
+    tempfilename: str80;
     
 begin
-    fillchar(temp, sizeof(temp), ' ' ); 
-    temp := '(Y)es or (N)o?';
-    i := length(temp);
-    StatusWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Write to file?');
-    GotoWindowXY (StatusWindowPtr, 1, 1);
-    WriteWindow(StatusWindowPtr, temp);
-    c := readkey;
-    EraseWindow(StatusWindowPtr);
-    if upcase(c) = 'Y' then
+    GotoXY(1, maxlength + 1);
+    ClrEol;
+    Blink(1, maxlength + 1, maxwidth + 2);
+    if filename <> '' then
+        temp := concat('File Name to Write [', filename, ']: ', filename)
+    else
+        temp := concat('File Name to Write: ', filename);
+    
+    tempfilename := filename;
+
+    repeat
+        FastWrite(temp);
+        read(tempfilename);
+    until filename <> '';
+    
+    assign(textfile, tempfilename);
+    {$i-}
+    rewrite(textfile);
+    {$i+}
+    
+    filename := tempfilename;
+    
+    for i := 1 to highestline + 1 do
     begin
-        fillchar(temp, sizeof(temp), ' ' ); 
-        temp := concat('Writing file ', paramstr (1), '...');
-        i := length(temp);
-        StatusWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Writing...');
-        GotoWindowXY (StatusWindowPtr, 1, 1);
-        WriteWindow(StatusWindowPtr, temp);
-        rewrite(textfile);
-        for i := 1 to highestline + 1 do
-        begin
-            if (i mod 100) = 0 then
-                write(#13, i);
+        if (i mod 100) = 0 then
+            write(#13, i);
 
-            writeln(textfile, linebuffer [i]^);
-        end;
-        EraseWindow(StatusWindowPtr);
-        fillchar(temp, sizeof(temp), ' ' ); 
-        str(i, number);
-        temp := concat('Lines written to file ', paramstr (1), ': ', number, '.');
-        i := length(temp);
-        StatusWindowPtr := MakeWindow (((80 - i) div 2), 12, i + 2, 3, 'Lines');
-        GotoWindowXY (StatusWindowPtr, 1, 1);
-        WriteWindow(StatusWindowPtr, temp);
-
-        writeln(textfile,^Z);
-        close(textfile);
-        delay(1000);
-
-        EraseWindow(StatusWindowPtr);
+        writeln(textfile, linebuffer [i]^);
     end;
-    EraseWindow(EditWindowPtr);
-    exittodos;
+    
+    close(textfile);
+    
+    savedfile := true;
+    
+    ClearBlink(1, maxlength + 1, maxwidth + 2);
+    str(highestline + 1, tempnumber0);
+    temp := concat('Wrote ', tempnumber0, ' lines ');
+    StatusLine(temp);
 end;
 
-procedure quitnosave;
+procedure ExitToDOS;
 begin
+    if not savedfile then
+        WriteOut; 
     EraseWindow(EditWindowPtr);
-    exittodos;
+    ClearAllBlinks;
+    clrscr;
+    halt;
 end;
 
 procedure PageUp;
 begin
    currentline := currentline - maxlength - 2;
    if currentline <= screenline then
-      beginfile
+      BeginFile
    else
-      drawscreen;
+      DrawScreen;
  end;
 
 procedure PageDown;
 begin
   currentline := currentline + maxlength - 2;
   if currentline + 12 >= highestline then
-     endfile
+     EndFile
   else
-     drawscreen;
+     DrawScreen;
 end;
 
 procedure prevword;
@@ -794,7 +774,7 @@ begin
    CursorRight;
 end;
 
-procedure nextword;
+procedure NextWord;
 begin
 (* if i am in a word, then move to the whitespace *)
    while (not ((linebuffer[currentline]^[column] = ' ') or
@@ -831,7 +811,7 @@ begin
     end;
 end;
 
-procedure escape;
+procedure RemoveLine;
 begin
     CursorOff;
     column := 1;
@@ -844,7 +824,7 @@ begin
     linebuffer[currentline] := emptyline;
     CursorOn;
 end;
-
+{
 procedure locate;
 var
     i, j, pointer, position, len    : integer;
@@ -867,7 +847,7 @@ begin
 
     if len = 0 then
     begin
-        beginfile;
+        BeginFile;
         exit;
     end;
 
@@ -907,17 +887,17 @@ begin
     WritelnWindow(StatusWindowPtr, 'End of locate.  Press any key to exit...');
     c := readkey;
     ClrWindow(StatusWindowPtr);
-    beginfile;
+    BeginFile;
 end;
-
+}
 procedure WhereIs;
 var
     c                   : char;
     i, j, pointer, len  : integer;
-    tempsearchstring    : string[80];
+    tempsearchstring    : str80;
  
 begin
-    DisplayKeys(2);
+    DisplayKeys (search);
     GotoXY(1, maxlength + 1);
     ClrEol;
     Blink(1, maxlength + 1, maxwidth + 2);
@@ -933,7 +913,7 @@ begin
     if length (searchstring) = 0 then
         if length(tempsearchstring) = 0 then
         begin
-            beginfile;
+            BeginFile;
             exit;
         end
         else
@@ -952,13 +932,13 @@ begin
         begin
             currentline := i;
             if currentline >= maxlength then
-                screenline := maxlength
+            begin
+                screenline := maxlength - 1;
+                DrawScreen;
+            end
             else
                 screenline := currentline;
             column := pointer;
-
-    (*  Probleminha... Se estiver em outra página de texto, tem que fazer 
-    * scroll até lá. *)
 
     (* Redraw the StatusLine, bottom of the window and display keys *)
 
@@ -966,7 +946,7 @@ begin
             FillChar(temp, maxwidth + 3, #23);
             temp[1] := #26; temp[maxwidth + 2] := #27;
             WriteVram(0, (maxwidth + 2) * maxlength, Addr(temp[1]), maxwidth + 3);
-            DisplayKeys(1);
+            DisplayKeys (main);
             exit;
         end;
     end;
@@ -974,51 +954,54 @@ begin
     ClearBlink(1, maxlength + 1, maxwidth + 2);
     temp := concat(searchstring, ' not found');
     StatusLine(temp);
-    DisplayKeys(1);
+    DisplayKeys (main);
 end;
 
-procedure replace;
+procedure SearchAndReplace;
 var
-    tempnumber               : string [5];
-    i, j, position, line, replacementlength,
-    searchlength             : integer;
-    choice                   : char;
+    i, j, position, line                : integer;
+    searchlength, replacementlength     : byte;
+    choice                              : char;
+    tempsearchstring                    : str80;
    
 begin
+    DisplayKeys (search);
     SetBlinkRate (5, 0);
+    GotoXY(1, maxlength + 1);
+    ClrEol;
+    Blink(1, maxlength + 1, maxwidth + 2);
+
+    tempsearchstring := searchstring;
+    if searchstring <> '' then
+        temp := concat('Search (to replace) [', tempsearchstring, ']: ')
+    else
+        temp := 'Search (to replace): ';
+        
+    FastWrite (temp);
+    read(searchstring);
     
-    temp := 'Search for: ';
-    j := length (temp);
-    StatusWindowPtr := MakeWindow (1, 12, 79, 3, 'Replace');
-    GotoWindowXY (StatusWindowPtr, 1, 1);
-    WriteWindow(StatusWindowPtr, temp);
-    GotoWindowXY (StatusWindowPtr, j + 1, 1);
-    temp := '';
-    readln(temp);
-    ClrWindow(StatusWindowPtr);
+    searchlength := length(searchstring);
 
-    if temp <> '' then
-        searchstring := temp;
-
-    searchlength := length (searchstring);
     if searchlength = 0 then
-    begin
-        EraseWindow(StatusWindowPtr);
-        exit;
-    end;
+        if length(tempsearchstring) = 0 then
+        begin
+            BeginFile;
+            exit;
+        end
+        else
+            searchstring := tempsearchstring;
 
-    temp := 'Replace with: ';
-    j := length (temp);
-    GotoWindowXY (StatusWindowPtr, 1, 1);
-    WriteWindow(StatusWindowPtr, temp);
-    GotoWindowXY (StatusWindowPtr, j + 1, 1);
-    temp := '';
-    readln(temp);
-    EraseWindow(StatusWindowPtr);
+    GotoXY(1, maxlength + 1);
+    ClrEol;
+    DisplayKeys (replace);
 
-    if temp <> '' then
-        replacement := temp;
-    replacementlength := length (replacement);
+    temp := concat('Replace with: ');
+    FastWrite (temp);
+    read(replacestring);    
+    
+    replacementlength := length (replacestring);
+
+    choice := ' ';    
 
     for line := 1 to highestline do
     begin
@@ -1032,128 +1015,187 @@ begin
             else
                 screenline := currentline;
 
-            drawscreen;
+            DrawScreen;
             column := position;
             Blink(column + 1, screenline + 1, searchlength);
 
-            GotoXY(1, maxlength + 2);
-            write('Replace (Y/N/ESC)? ');
-            choice := readkey;
-            ClearBlink(column + 1, screenline + 1, searchlength);
+            GotoXY(1, maxlength + 1);
 
-            GotoXY(1, maxlength + 2);
-            
-            if ord (choice) = 27 then
+            if not (choice in ['a', 'A']) then
             begin
-                ClrEol;
-                displaykeys (1);
-                beginfile;
-                exit;
+                FastWrite('Replace this instance?');
+                choice := readkey;
             end;
 
-            temp := 'Searching... Line ';
-            j := length (temp);
-            GotoXY (1, maxlength + 2);
-            ClrEol;
-            Write(temp);
+            ClearBlink(column + 1, screenline + 1, searchlength);
 
-            if choice in ['y','Y'] then
-            begin
-                linebuffer[line]^ := copy (linebuffer [line]^, 1, position - 1) +
-                                        replacement + copy (linebuffer [line]^, position +
-                                        length (searchstring), 128);
+(*      Problema: Na execução do replace, *)
+            
+            case ord (choice) of
+            CONTROLC:          begin
+                                    ClrEol;
+                                    StatusLine('Cancelled');
+                                    DisplayKeys (main);
+                                    BeginFile;
+                                    exit;
+                                end;
+                                
+(* a, A, y, Y *)
+                                
+(* Problema: A rotina que faz a troca precisa fazer nova busca a partir daquela posição
+* nova. Este é um problema que vem desde o código original. Outra alteração seria 
+* apenas reescrever aquela linha específica, e não toda a janela. Redesenhar toda a 
+* janela, somente se trocar de página. *)
+                                
+            65, 97, 89, 121:    begin
+                                    linebuffer[line]^ := copy (linebuffer [line]^, 1, position - 1) +
+                                    replacestring + copy (linebuffer [line]^, 
+                                    position + length (searchstring), 128);
 
-                position := pos (searchstring, copy (linebuffer[line]^,
-                            position + replacementlength + 1,128)) +  position + replacementlength;
-            end
-            else
-                position := pos (searchstring, copy (linebuffer[line]^,
-                                position + length(searchstring) + 1,128)) +
+                                    position := pos (searchstring, copy (linebuffer[line]^,
+                                    position + replacementlength + 1, 128)) + 
+                                    position + replacementlength;
+                                end;
+(* n, N *)                                
+
+            78, 110:            position := pos (searchstring, copy (linebuffer[line]^,
+                                position + length(searchstring) + 1, 128)) +
                                 position + length(searchstring);
+            end;
 
             GotoWindowXY(EditWindowPtr, 1, screenline);
             ClrEolWindow(EditWindowPtr);
-            write(copy(linebuffer[currentline]^,1,79));
+            temp := copy(linebuffer[currentline]^, 1, 79);
+            WriteWindow(EditWindowPtr, temp);
         end;
+    end;
 end;
-    temp := 'End of replace.  Press any key to exit.';
-    ShowMessage(temp);
-    SetBlinkRate(3, 3);
- end;
 
-procedure handlefunc(keynum: integer);
+procedure AlignText;
 var
-    key: integer;
-    iscommand : boolean;
+    c: char;
+begin
+    DisplayKeys(align);
+    c := readkey;
+    case ord(c) of
+        76, 108:    begin
+(* left *)        
+                    end;
+        82, 114:    begin
+(* right *)        
+                    end;
+        67, 99:     begin
+(* center *)        
+                    end;
+        74, 106:    begin
+(* justify *)        
+                    end;
+        else    exit;
+    end;
+end;
+
+procedure Location;
+var
+    tempnumber1, tempnumber2: string[5];
+    tempint, tempint2: byte;
+
+begin
+    fillchar(temp, sizeof(temp), #32);
+    str(currentline, tempnumber0);
+    str(highestline, tempnumber1);
+
+(*  Calculating percentage. *)    
+
+    tempint := ((currentline * 100) div highestline);
+    str(tempint, tempnumber2);
+    temp := concat(' line ',tempnumber0,'/',tempnumber1, ' (', tempnumber2,'%), ');
+
+    tempint2 := length(linebuffer[currentline]^) + 1;
+    str(column, tempnumber0);
+    str(tempint2, tempnumber1);
+    tempint := ((column * 100) div tempint2);
+    str(tempint, tempnumber2);
+    
+    temp := concat(temp, 'col ',tempnumber0,'/',tempnumber1, ' (', tempnumber2,'%)');
+
+    StatusLine(temp);
+end;
+
+procedure handlefunc(keynum: byte);
+var
+    key         : byte;
+    iscommand   : boolean;
     
 begin
     case keynum of
         BS          :   backspace;
         TAB         :   tabulate;
-        ENTER       :   return;
-{        27:  escape;
-}
-        ESC         :   terminate;
-        HOME        :   beginline;
+        ENTER       :   Return;
         UpArrow     :   CursorUp;
         LeftArrow   :   CursorLeft;
         RightArrow  :   CursorRight;
         DownArrow   :   CursorDown;
-        CONTROLD    :   PageUp;
-        CONTROLS    :   PageDown;
         INSERT      :   ins;
         DELETE      :   del;
+        HOME        :   BeginFile;
+        CLS         :   EndFile;
+        CONTROLA    :   BeginLine;
+        CONTROLB    :   PrevWord;
+        CONTROLC    :   Location; 
+        CONTROLD    :   del;
+        CONTROLE    :   EndLine;    
+        CONTROLF    :   NextWord;
+        CONTROLG    :   Help;
+        CONTROLJ    :   AlignText;
+        CONTROLN    :   SearchAndReplace;
+        CONTROLO    :   WriteOut;
+(*        CONTROLP    : *)
+(*        CONTROLQ    : Busca de trás pra frente. Alterar o search pra isso. *)
+(*        CONTROLR    : Ler novo arquivo. *)
+(*        CONTROLS    : Salva o arquivo sem perguntar nome. Alterar o WriteOut pra isso. *)
+(*        CONTROLT    : Tá sobrando... *)
+(*        CONTROLU    : Colar conteúdo do buffer. Vai demorar... *)
+        CONTROLV    :   PageDown;
         CONTROLW    :   WhereIs;
-        SELECT      :   replace;    { SELECT sera usado com combinacao de teclas }
-        CONTROLY    :   deleteline;
-        CONTROLA    :   nextword;
-        CONTROLF    :   prevword;
-        CONTROLQ    :   beginfile;
-        CONTROLC    :   endfile;
-        CONTROLJ    :   help;
-(*        CONTROLX    :   terminate; *)
-        CONTROLZ    :   locate;
-        CONTROLB    :   endline;
-        CONTROLU    :   quitnosave;
-        CONTROLO    :   escape;
-        CONTROLP    :   backtab;
-
-(*
-        320:  insertline;
-        327:  column := 1;
-        374:  endfile;
-*)
-
-        else    delay(300);
+        CONTROLY    :   PageUp;
+        CONTROLZ    :   ExitToDOS;
+        SELECT      :   begin
+                            GetKey (key, iscommand);
+                            if iscommand then
+                                case key of
+                                    DELETE: RemoveLine;
+                                    TAB:    backtab;
+                                    else    delay(100);
+                                end;
+                        end;
+        else    delay(100);
     end;
 end;
 
 (* main *)
 
 var
-    key: integer;
-    iscommand:  boolean;
+    key         : byte;
+    iscommand   : boolean;
 
 begin
-   
+
     if (paramcount <> 1) then
     begin
         writeln('Usage: nanomsx FILENAME');
         halt;
     end;
 
-    initialize;
-    loadfile(paramstr (1));
-    str(highestline, temp);
-    temp := concat('Read ', temp, ' lines.');
-    StatusLine (temp);
+    filename := paramstr(1);
+    InitTextEditor;
+    ReadFile(filename);
 
 (* main loop - get a key and process it *)
 
     repeat
         GotoWindowXY(EditWindowPtr, column, screenline);
         CursorOn;
-        getkey (key, iscommand);
+        GetKey (key, iscommand);
         CursorOff;
         if iscommand then
             handlefunc(key)

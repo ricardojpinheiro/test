@@ -1,11 +1,11 @@
 {TxtWin.inc by Kari Lammassaari 1997 }
-{
+
 Type Pointer   = ^Byte;
-}
+
 Type String255 = String[255];
      String80  = String[80];
 
-Function  MakeWindow(Col , Row, Width, Height: Byte; Header: String80):Pointer;
+Function  MakeWindow(Col,Row,Width,Height:Byte;Header:String80):Pointer;
  {
    MakeWindow stores the underlying screen onto heap. 
    The structure of heap record:  offset 0  = column of the upper left corner
@@ -27,44 +27,49 @@ Function  MakeWindow(Col , Row, Width, Height: Byte; Header: String80):Pointer;
         st   :String[80];
         a,b  :Byte;
 
-Begin
-    GetMem(pt, Width * Height + 6);
-    Mem[at]     := Col;     Mem[at+1]   := Row;
-    Mem[at+2]   := Width;   Mem[at+3]   := Height;
-    Mem[at+4]   := 1;       Mem[at+5]   := 1;
-    Vram := (Row - 1) * 80 + Col;
-    Ram := At + 6;
-    For Count := 1 to Height Do
     Begin
-        ReadVram(0, Vram, Ram, Width);
-        Vram := Vram + 80;
-        Ram := Ram + Width;
-    End;
+       GetMem(pt,Width*Height + 6);
+       Mem[at] := Col;
+       Mem[at+1] := Row;
+       Mem[at+2] := Width;
+       Mem[at+3] := Height;
+       Mem[at+4] := 1;
+       Mem[at+5] := 1;
+       Vram := (Row-1)*80 + Col;
+       Ram := At+6;
+       For Count := 1 to  Height  Do
+        Begin
+          ReadVram(0,Vram,Ram,Width);
+          Vram := Vram +80;
+          Ram := Ram + Width;
+        End;
 
 (*      FillChar(St,81,Horizontal); {Fill with horizontal line } *)
-    FillChar(St, 81, ' ');
-    a := (Width - Length(Header)) Div 2;
-    For b := 1 To Length(Header) Do 
-        St[a + b] := Header[b];
-    St[1] := ULC;   St[Width] := URC;
-    Vram := (Row - 1) * 80 + Col;
-    WriteVram(0, Vram, Addr(St[1]), Width);
+	FillChar(St, 81, ' ');
+      a := (Width - Length(Header)) Div 2;
+      For b := 1 To Length(Header) Do 
+      	St[a+b] := Header[b];
+      St[1] := ULC;
+      St[Width] := URC;
+      Vram := (Row-1)*80 + Col;
+      WriteVram(0,Vram,Addr(St[1]),Width);
 
-    FillChar(St, 81, 32); {Fill with space }
-    St[1]       := Vertical;    St[Width]   := Vertical;
-    Vram := Vram + 80;
-    For Count := 2 to height - 1 Do
-    Begin
-        WriteVram(0, Vram, Addr(St[1]), Width);
-        Vram := Vram + 80;
-    End;
+      FillChar(St,81,32); {Fill with space }
+      St[1] := Vertical;
+      St[Width] := Vertical;
+      Vram := Vram+80;
+      For Count := 2 to height-1 Do
+       Begin
+          WriteVram(0,Vram,Addr(St[1]),Width);
+          Vram := Vram+80;
+       End;
 
-    FillChar(St, 81, Horizontal); {Fill with horizontal line }
-    St[1] := DLC;   St[Width] := DRC;
-    WriteVram(0, Vram, Addr(St[1]), Width);
+      FillChar(St,81,Horizontal); {Fill with horizontal line }
+      St[1] := DLC ;St[Width] := DRC;
+      WriteVram(0,Vram,Addr(St[1]),Width);
 
-    MakeWindow := pt;
-End;  {MakeWindow}
+      MakeWindow := pt;
+    End;  {MakeWindow}
 
 Procedure EraseWindow(WindowPtr:Pointer);
    Var pt :Pointer;

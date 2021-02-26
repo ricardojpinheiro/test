@@ -84,5 +84,11 @@ BEGIN
             writeln('B');
     end;
 
+    c := readkey;
+    case ord(c) of
+        89, 121:    writeln('Y');
+        90, 122:    writeln('Z');
+    end;
+
 END.
 
