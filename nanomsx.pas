@@ -126,8 +126,48 @@ begin
             Found := true;
         end;
         i := i - 1;
-    until Found = true;
+    until (Found = true) or (i = 1);
     if Not Found then LastPos := 0;
+end;
+
+(* Finds the first occurence of a char which is different into a string. *)
+
+function DifferentPos(Character: char; Phrase: TString): byte;
+var
+    i: byte;
+    Found: boolean;
+begin
+    i := 1;
+    Found := false;
+    repeat
+        if Phrase[i] <> Character then
+        begin
+            DifferentPos := i;
+            Found := true;
+        end;
+        i := i + 1;
+    until (Found = true) or (i = length(Phrase));
+    if Not Found then DifferentPos := 0;
+end;
+
+(* Finds the last occurence of a char which is different into a string. *)
+
+function LastDifferentPos(Character: char; Phrase: TString): integer;
+var
+    i: integer;
+    Found: boolean;
+begin
+    i := length(Phrase);
+    Found := false;
+    repeat
+        if Phrase[i] <> Character then
+        begin
+            LastDifferentPos := i + 1;
+            Found := true;
+        end;
+        i := i - 1;
+    until (Found = true) or (i = 1);
+    if Not Found then LastDifferentPos := 0;
 end;
 
 procedure CheatAPPEND (FileName: TFileName);
@@ -674,28 +714,29 @@ begin
     del;
 end;
 
-procedure WriteOut;
+procedure WriteOut (AskForName: boolean);
 var
     i: integer;
     tempfilename: str80;
     
 begin
-    GotoXY(1, maxlength + 1);
-    ClrEol;
-    Blink(1, maxlength + 1, maxwidth + 2);
-    if filename <> '' then
-        temp := concat('File Name to Write [', filename, ']: ', filename)
-    else
-        temp := concat('File Name to Write: ', filename);
-    
-    tempfilename := filename;
-
-    repeat
+    if AskForName then
+    begin
+        GotoXY(1, maxlength + 1);
+        ClrEol;
+        Blink(1, maxlength + 1, maxwidth + 2);
+        if filename <> '' then
+            temp := concat('File Name to Write [', filename, ']: ')
+        else
+            temp := concat('File Name to Write: ');
+{    
+        tempfilename := filename;
+}
         FastWrite(temp);
-        read(tempfilename);
-    until filename <> '';
+        read(filename);
+    end;
     
-    assign(textfile, tempfilename);
+    assign(textfile, filename);
     {$i-}
     rewrite(textfile);
     {$i+}
@@ -723,7 +764,7 @@ end;
 procedure ExitToDOS;
 begin
     if not savedfile then
-        WriteOut; 
+        WriteOut(false); 
     EraseWindow(EditWindowPtr);
     ClearAllBlinks;
     clrscr;
@@ -1073,27 +1114,58 @@ end;
 
 procedure AlignText;
 var
+    lengthline, blankspaces: byte;
     c: char;
+
+    i, j: byte;
+    Found: boolean;
+
+    procedure RemoveBlankSpaces;
+    begin
+        delete(linebuffer[currentline]^, 1, DifferentPos(#32, linebuffer[currentline]^) - 1);
+        delete(linebuffer[currentline]^, LastDifferentPos(#32, linebuffer[currentline]^) - 1, lengthline - 1);
+    end;
+    
 begin
+    lengthline := length(linebuffer[currentline]^);
+
+(*  Testar um pouco mais. No processo, ele está matando o último caractere da linha. 
+* Deve ser coisa besta. *)
+
     DisplayKeys(align);
     c := readkey;
+
     case ord(c) of
         76, 108:    begin
-(* left *)        
+(* left *)
+                        RemoveBlankSpaces;
+                        blankspaces := (maxwidth - lengthline) + 1;
+                        for i := 1 to blankspaces do
+                            insert(' ', linebuffer[currentline]^ , lengthline);
                     end;
         82, 114:    begin
 (* right *)        
+                        RemoveBlankSpaces;
+                        blankspaces := (maxwidth - lengthline) + 1;
+                        for i := 1 to blankspaces do
+                            insert(' ', linebuffer[currentline]^ , 1);
                     end;
         67, 99:     begin
-(* center *)        
+(* center *)
+                        RemoveBlankSpaces;
+                        blankspaces := (maxwidth - lengthline) div 2;
+                        for i := 1 to blankspaces do
+                            insert(' ', linebuffer[currentline]^ , 1);                        
                     end;
         74, 106:    begin
 (* justify *)        
                     end;
-        else    begin
-                    DisplayKeys(main);
-                end;
     end;
+    DisplayKeys(main);
+
+(*  Fica mais rápido redesenhar somente a linha alterada. *)
+
+    DrawScreen;
 end;
 
 procedure Location;
@@ -1150,11 +1222,11 @@ begin
         CONTROLG    :   Help;
         CONTROLJ    :   AlignText;
         CONTROLN    :   SearchAndReplace;
-        CONTROLO    :   WriteOut;
+        CONTROLO    :   WriteOut(true);
+        CONTROLS    :   WriteOut(false);
 (*        CONTROLP    : *)
 (*        CONTROLQ    : Busca de trás pra frente. Alterar o search pra isso. *)
 (*        CONTROLR    : Ler novo arquivo. *)
-(*        CONTROLS    : Salva o arquivo sem perguntar nome. Alterar o WriteOut pra isso. *)
 (*        CONTROLT    : Tá sobrando... *)
 (*        CONTROLU    : Colar conteúdo do buffer. Vai demorar... *)
         CONTROLV    :   PageDown;
