@@ -1116,21 +1116,21 @@ procedure AlignText;
 var
     lengthline, blankspaces: byte;
     c: char;
+    justifyvector: array [1..80] of byte;
 
-    i, j: byte;
-    Found: boolean;
+    i, j, k, l: byte;
 
     procedure RemoveBlankSpaces;
     begin
         delete(linebuffer[currentline]^, 1, DifferentPos(#32, linebuffer[currentline]^) - 1);
-        delete(linebuffer[currentline]^, LastDifferentPos(#32, linebuffer[currentline]^) - 1, lengthline - 1);
+        delete(linebuffer[currentline]^, LastDifferentPos(#32, linebuffer[currentline]^), lengthline);
     end;
     
 begin
-    lengthline := length(linebuffer[currentline]^);
+(*  Testar um pouco mais. *)
 
-(*  Testar um pouco mais. No processo, ele está matando o último caractere da linha. 
-* Deve ser coisa besta. *)
+    lengthline := (LastDifferentPos(#32, linebuffer[currentline]^)) - (DifferentPos(#32, linebuffer[currentline]^) - 1) + 1;
+    gotoxy (15, 1); write(lengthline);
 
     DisplayKeys(align);
     c := readkey;
@@ -1141,31 +1141,54 @@ begin
                         RemoveBlankSpaces;
                         blankspaces := (maxwidth - lengthline) + 1;
                         for i := 1 to blankspaces do
-                            insert(' ', linebuffer[currentline]^ , lengthline);
+                            insert(#32, linebuffer[currentline]^ , lengthline);
+                        delete(linebuffer[currentline]^, LastDifferentPos(#32, linebuffer[currentline]^), lengthline);
                     end;
         82, 114:    begin
 (* right *)        
                         RemoveBlankSpaces;
-                        blankspaces := (maxwidth - lengthline) + 1;
+                        blankspaces := (maxwidth - lengthline);
                         for i := 1 to blankspaces do
-                            insert(' ', linebuffer[currentline]^ , 1);
+                            insert(#32, linebuffer[currentline]^ , 1);
                     end;
         67, 99:     begin
 (* center *)
                         RemoveBlankSpaces;
                         blankspaces := (maxwidth - lengthline) div 2;
                         for i := 1 to blankspaces do
-                            insert(' ', linebuffer[currentline]^ , 1);                        
+                            insert(#32, linebuffer[currentline]^ , 1);                        
                     end;
         74, 106:    begin
-(* justify *)        
+(* justify *)
+                        temp := linebuffer[currentline]^;
+                        j := 1;
+                        for i := 1 to (LastDifferentPos(chr(32), temp)) do
+                        begin
+                            if ord(temp[i]) = 32 then
+                            begin
+                                justifyvector[j] := i;
+                                j := j + 1;
+                            end;
+                        end;
+                        k := (maxwidth - length(temp)) div (j - 1);
+                        
+                        for i := j downto 1 do
+                        begin
+                            for l := 1 to k do
+                                insert(#32, temp, justifyvector[i]);
+                            justifyvector[i] := justifyvector[i] + k;
+                        end;
+                        linebuffer[currentline]^ := temp;
                     end;
     end;
     DisplayKeys(main);
 
 (*  Fica mais rápido redesenhar somente a linha alterada. *)
 
+    quick_display(1, screenline, linebuffer[currentline]^);
+{
     DrawScreen;
+}
 end;
 
 procedure Location;
