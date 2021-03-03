@@ -83,10 +83,11 @@ var
     textfile:           text;
     searchstring,
     replacestring,
-    filename, temp:     str80;
+    filename:           str80;
     savedfile,
     insertmode:         boolean;
     tempnumber0:        string[5];
+    temp:               linestring;
 
     Registers:          TRegs;
    
@@ -126,7 +127,7 @@ begin
             Found := true;
         end;
         i := i - 1;
-    until (Found = true) or (i = 1);
+    until Found;
     if Not Found then LastPos := 0;
 end;
 
@@ -146,7 +147,7 @@ begin
             Found := true;
         end;
         i := i + 1;
-    until (Found = true) or (i = length(Phrase));
+    until (Found) or (i >= length(Phrase));
     if Not Found then DifferentPos := 0;
 end;
 
@@ -162,11 +163,11 @@ begin
     repeat
         if Phrase[i] <> Character then
         begin
-            LastDifferentPos := i + 1;
+            LastDifferentPos := i;
             Found := true;
         end;
         i := i - 1;
-    until (Found = true) or (i = 1);
+    until Found or (i <= 1);
     if Not Found then LastDifferentPos := 0;
 end;
 
@@ -1116,21 +1117,32 @@ procedure AlignText;
 var
     lengthline, blankspaces: byte;
     c: char;
-    justifyvector: array [1..80] of byte;
+    justifyvector: array [1..maxwidth] of byte;
 
     i, j, k, l: byte;
 
-    procedure RemoveBlankSpaces;
-    begin
-        delete(linebuffer[currentline]^, 1, DifferentPos(#32, linebuffer[currentline]^) - 1);
-        delete(linebuffer[currentline]^, LastDifferentPos(#32, linebuffer[currentline]^), lengthline);
-    end;
-    
 begin
 (*  Testar um pouco mais. *)
 
-    lengthline := (LastDifferentPos(#32, linebuffer[currentline]^)) - (DifferentPos(#32, linebuffer[currentline]^) - 1) + 1;
-    gotoxy (15, 1); write(lengthline);
+    temp := linebuffer[currentline]^;
+    lengthline := length(temp);
+    
+(*  Remove espacos em branco no inicio e no fim do texto. *)    
+        
+    i := DifferentPos(chr(32), temp) - 1; 
+    j := LastDifferentPos(chr(32), temp) + 1;
+
+    if i > 1 then
+        delete(temp, 1, i)
+    else
+        i := 0;
+        
+    if j < maxwidth then
+        delete(temp, j, lengthline - j)
+    else
+        j := maxwidth;
+
+    lengthline := length(temp);
 
     DisplayKeys(align);
     c := readkey;
@@ -1138,39 +1150,39 @@ begin
     case ord(c) of
         76, 108:    begin
 (* left *)
-                        RemoveBlankSpaces;
                         blankspaces := (maxwidth - lengthline) + 1;
                         for i := 1 to blankspaces do
-                            insert(#32, linebuffer[currentline]^ , lengthline);
-                        delete(linebuffer[currentline]^, LastDifferentPos(#32, linebuffer[currentline]^), lengthline);
+                            insert(#32, temp, lengthline + 1);
                     end;
         82, 114:    begin
 (* right *)        
-                        RemoveBlankSpaces;
                         blankspaces := (maxwidth - lengthline);
                         for i := 1 to blankspaces do
-                            insert(#32, linebuffer[currentline]^ , 1);
+                            insert(#32, temp, 1);
                     end;
         67, 99:     begin
 (* center *)
-                        RemoveBlankSpaces;
                         blankspaces := (maxwidth - lengthline) div 2;
                         for i := 1 to blankspaces do
-                            insert(#32, linebuffer[currentline]^ , 1);                        
+                            insert(#32, temp, 1);                        
                     end;
         74, 106:    begin
 (* justify *)
-                        temp := linebuffer[currentline]^;
                         j := 1;
+                        
+(*  Localiza os espaços em branco na frase e salva suas posições. *)                        
+                        
                         for i := 1 to (LastDifferentPos(chr(32), temp)) do
-                        begin
                             if ord(temp[i]) = 32 then
                             begin
                                 justifyvector[j] := i;
                                 j := j + 1;
                             end;
-                        end;
-                        k := (maxwidth - length(temp)) div (j - 1);
+
+(*  Insere espaços em branco nas posiçoes armazenadas do vetor anterior. *)                        
+                        
+                        j := j - 1;
+                        k := (maxwidth - lengthline) div j;
                         
                         for i := j downto 1 do
                         begin
@@ -1178,17 +1190,38 @@ begin
                                 insert(#32, temp, justifyvector[i]);
                             justifyvector[i] := justifyvector[i] + k;
                         end;
-                        linebuffer[currentline]^ := temp;
+
+                        k := (maxwidth - lengthline) mod j;
+                        
+                        for l := 1 to k do
+                            insert(#32, temp, justifyvector[1]);
+                        justifyvector[1] := justifyvector[1] + k;
+
                     end;
     end;
+    
+    linebuffer[currentline]^ := temp;
+    
     DisplayKeys(main);
 
 (*  Fica mais rápido redesenhar somente a linha alterada. *)
 
-    quick_display(1, screenline, linebuffer[currentline]^);
-{
-    DrawScreen;
-}
+    if screenline < (maxlength - 1) then
+    begin
+        quick_display(1, screenline, linebuffer[currentline]^);
+        quick_display(1, screenline + 1, linebuffer[currentline + 1]^);
+    end
+    else
+        DrawScreen;
+    
+    case ord(c) of
+        76, 108: temp := 'Text aligned to the left.';
+        82, 114: temp := 'Text aligned to the right.';
+        67, 99:  temp := 'Text aligned to the center.';
+        74, 106: temp := 'Text justified.';
+    end;
+    
+    StatusLine(temp);
 end;
 
 procedure Location;
