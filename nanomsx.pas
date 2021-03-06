@@ -57,6 +57,7 @@ type
     linestring          = string [128];
     lineptr             = ^linestring;
     KeystrokeLines      = (main, search, replace, align);
+    Directions          = (forwardsearch, backwardsearch);
 
 {$i d:types.inc}
 {$i d:dos.inc}
@@ -304,15 +305,14 @@ begin
                         BlinkSequence[3] := 22; BlinkSequence[4] := 34;
                         BlinkSequence[5] := 43; BlinkSequence[6] := 54;
                         Line1 := '^G Help ^O Write Out ^W Where Is ^K Cut   ^T Execute ^C Location  ';
-                        Line2 := '^Z Exit ^R Read File ^N Replace  ^U Paste ^J Justify ^_ Go To Line';
+                        Line2 := '^Z Exit ^R Read File ^N Replace  ^U Paste ^J Justify ~G Go To Line';
                     end;
         search:     begin
                         BlinkLength := 2;
                         BlinkSequence[1] := 1;  BlinkSequence[2] := 11;
-                        BlinkSequence[3] := 24; BlinkSequence[4] := 37;
-                        BlinkSequence[5] := 46;
-                        Line1 := '^G Help   ~C Case Sens ~B Backwards ^P Older ^T Go To Line        ';
-                        Line2 := '^C Cancel ~R Reg.Exp.  ^E Replace   ^N Newer ^X Exit              ';
+                        BlinkSequence[3] := 28; BlinkSequence[4] := 41;
+                        Line1 := '^G Help   ~W Next forward  ^Q Backwards ^T Go To Line        ';
+                        Line2 := '^C Cancel ~Q Bext backward ^N Replace   ^X Exit              ';
                     end;
         replace:    begin
                         BlinkLength := 2;
@@ -464,18 +464,20 @@ begin
     ClearBlink(1, maxlength + 1, maxwidth + 2);
     StatusWindowPtr := MakeWindow(0, 1, maxwidth + 2, maxlength + 1, 'Main nanoMSX help text');
     WritelnWindow(StatusWindowPtr, 'Commands:');
-    WritelnWindow(StatusWindowPtr, 'TODO Ctrl-S - Save current file.     Ctrl-O - Offer to write file ("Save as").');
-    WritelnWindow(StatusWindowPtr, 'TODO Ctrl-R - Read new file.            Ctrl+Z - Close buffer, exit from nano.');
-    WritelnWindow(StatusWindowPtr, 'Ctrl+G - Display help text               TODO Ctrl+C - Report cursor position.');
-    WritelnWindow(StatusWindowPtr, 'Ctrl+A - To start of line. Ctrl+Y - One page up.   Ctrl+F - One word backward.');
-    WritelnWindow(StatusWindowPtr, 'Ctrl+E - To end of line.   Ctrl+V - One page down. Ctrl+D - One word forward.');
-    WritelnWindow(StatusWindowPtr, 'TAB - Indent marked region                SELECT+TAB - Unindent marked region.');
-    WritelnWindow(StatusWindowPtr, 'Cursor right - One character forward.              Cursor up    - One line up.');
-    WritelnWindow(StatusWindowPtr, 'Cursor left  - One character backward            Cursor down  - One line down.');
-    WritelnWindow(StatusWindowPtr, 'HOME - To start of file.                        Ctrl+W - Start forward search.');
-    WritelnWindow(StatusWindowPtr, 'CLS - To end of file.                     TODO Ctrl+Q - Start backward search.');
-    WritelnWindow(StatusWindowPtr, 'TODO Ctrl+J - Align line.                  Ctrl+N - Start a replacing session.');
-    WritelnWindow(StatusWindowPtr, 'BS - Delete character before cursor.      DEL - Delete character under cursor.');
+    WritelnWindow(StatusWindowPtr, 'Ctrl-S - Save current file.         | Ctrl-O - Offer to write file ("Save as")');
+    WritelnWindow(StatusWindowPtr, 'Ctrl-R - Read new file. (TODO)      | Ctrl+Z - Close buffer, exit from nano.');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+G - Display help text.         | Ctrl+C - Report cursor position.');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+A - To start of line.          | Ctrl+Y - One page up.');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+E - To end of line.            | Ctrl+V - One page down.');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+F - One word backward          | Ctrl+D - One word forward.');
+    WritelnWindow(StatusWindowPtr, 'TAB - Indent marked region          | SELECT+TAB - Unindent marked region.');
+    WritelnWindow(StatusWindowPtr, 'Cursor right - Character forward.   | Cursor up   - One line up.');
+    WritelnWindow(StatusWindowPtr, 'Cursor left  - Character backward.  | Cursor down - One line down.');
+    WritelnWindow(StatusWindowPtr, 'HOME - To start of file.            | CLS - To end of file.');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+J - Align line.                | Ctrl+W - Start forward search.');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+N - Start a replacing session. | Ctrl+Q - Start backward search.');
+    WritelnWindow(StatusWindowPtr, 'BS - Delete character before cursor.| SELECT+W - Next occurrence forward.');
+    WritelnWindow(StatusWindowPtr, 'DEL - Delete character under cursor.| SELECT+Q - Next occurrence backward. TODO');
     WritelnWindow(StatusWindowPtr, 'SELECT-DEL - Delete current line.');
 {
     WritelnWindow(StatusWindowPtr, '');
@@ -932,25 +934,32 @@ begin
     BeginFile;
 end;
 }
-procedure WhereIs;
+procedure WhereIs (direction: Directions; nextoccurrence: boolean);
 var
     c                   : char;
     i, j, pointer, len  : integer;
     tempsearchstring    : str80;
+    stopsearch          : integer;
  
 begin
     DisplayKeys (search);
-    GotoXY(1, maxlength + 1);
-    ClrEol;
-    Blink(1, maxlength + 1, maxwidth + 2);
-    tempsearchstring := searchstring;
-    if searchstring <> '' then
-        temp := concat('Search [', tempsearchstring, ']: ')
-    else
-        temp := 'Search: ';
+
+(*  Não está funcionando continuar a busca de trás pra frente. *)
+    
+    if NOT nextoccurrence OR (searchstring = '') then
+    begin
+        GotoXY(1, maxlength + 1);
+        ClrEol;
+        Blink(1, maxlength + 1, maxwidth + 2);
+        tempsearchstring := searchstring;
+        if searchstring <> '' then
+            temp := concat('Search [', tempsearchstring, ']: ')
+        else
+            temp := 'Search: ';
         
-    FastWrite (temp);
-    read(searchstring);
+        FastWrite (temp);
+        read(searchstring);
+    end;
 
     if length (searchstring) = 0 then
         if length(tempsearchstring) = 0 then
@@ -961,7 +970,14 @@ begin
         else
             searchstring := tempsearchstring;
         
-    for i := currentline + 1 to highestline do
+    if direction = forwardsearch then
+        stopsearch := highestline
+    else
+        stopsearch := 1;
+        
+    i := currentline + 1;
+    
+    while i <> stopsearch do
     begin
     
     (* look for matches on this line *)
@@ -991,6 +1007,12 @@ begin
             DisplayKeys (main);
             exit;
         end;
+        
+        if direction = forwardsearch then
+            i := i + 1
+        else
+            i := i - 1;
+        
     end;
 
     ClearBlink(1, maxlength + 1, maxwidth + 2);
@@ -1281,22 +1303,23 @@ begin
         CONTROLO    :   WriteOut(true);
         CONTROLS    :   WriteOut(false);
 (*        CONTROLP    : *)
-(*        CONTROLQ    : Busca de trás pra frente. Alterar o search pra isso. *)
+        CONTROLQ    :   WhereIs(backwardsearch, false);
 (*        CONTROLR    : Ler novo arquivo. *)
 (*        CONTROLT    : Tá sobrando... *)
 (*        CONTROLU    : Colar conteúdo do buffer. Vai demorar... *)
         CONTROLV    :   PageDown;
-        CONTROLW    :   WhereIs;
+        CONTROLW    :   WhereIs(forwardsearch, false);
         CONTROLY    :   PageUp;
         CONTROLZ    :   ExitToDOS;
         SELECT      :   begin
-                            GetKey (key, iscommand);
-                            if iscommand then
-                                case key of
-                                    DELETE: RemoveLine;
-                                    TAB:    backtab;
-                                    else    delay(100);
-                                end;
+                            key := ord(readkey);
+                            case key of
+                                DELETE  : RemoveLine;
+                                TAB     : backtab;
+                                81, 113 : WhereIs(forwardsearch, true);
+                                87, 119 : WhereIs(backwardsearch, true);
+                                else    delay(100);
+                            end;
                         end;
         else    delay(100);
     end;

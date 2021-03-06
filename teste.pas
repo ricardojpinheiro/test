@@ -65,6 +65,13 @@ end;
 
 
 BEGIN
+    for i:= 20 downto 1 do
+        write('i: ', i, ' ');
+    
+    writeln('Epa');
+    
+    readln;
+
     writeln('MSX version: ', msx_version);
     i := -20;
     writeln ('i=',i, ' abs(i)=', abs(i));
