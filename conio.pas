@@ -5,10 +5,10 @@
 
 (**
   *
-  * $Id: conio.pas 101 2016-06-22 12:26:09Z popolony2k $
+  * $Id: conio.pas 103 2020-06-17 00:40:53Z popolony2k $
   * $Author: popolony2k $
-  * $Date: 2016-06-22 12:26:09 +0000 (Wed, 22 Jun 2016) $
-  * $Revision: 101 $
+  * $Date: 2020-06-17 00:40:53 +0000 (Wed, 17 Jun 2020) $
+  * $Revision: 103 $
   * $HeadURL: file:///svn/p/oldskooltech/code/msx/trunk/msxdos/pascal/conio.pas $
   *)
 
@@ -75,8 +75,8 @@ Var
            nYCounter  : Byte;
 
 Begin
-  For nXCounter := nX1 To nX2 Do
-    For nYCounter := nY1 To nY2 Do
+  For nYCounter := nY1 To nY2 Do
+    For nXCounter := nX1 To nX2 Do
     Begin
       _GotoXY( nXCounter, nYCounter );
       Write( chChar );
@@ -107,6 +107,46 @@ Begin
   CALSLT( regs );
   CSRX := 1;
   CSRY := 1;
+End;
+
+(**
+  * CHPUT MSXBIOS call implementation.
+  * This function print a character to the text screen output;
+  * @param chChar The character to output to screen;
+  *)
+Procedure CHPUT( chChar : Char );
+Const
+        ctCHPUT   = $00A2;   { Output a character to the console }
+
+Var
+        regs    : TRegs;
+        EXPTBL  : Byte Absolute $FCC1; { Slot 0 }
+
+Begin
+  regs.IX := ctCHPUT;
+  regs.IY := EXPTBL;
+  regs.A  := Byte( chChar );
+  CALSLT( regs );
+End;
+
+(**
+  * CHGET MSXBIOS call implementation.
+  * This function retrieve the user typed key character;
+  *)
+Function CHGET : Char;
+Const
+        ctCHGET   = $009F;   { One character console input (waiting) }
+
+Var
+        regs    : TRegs;
+        EXPTBL  : Byte Absolute $FCC1; { Slot 0 }
+
+Begin
+  regs.IX := ctCHGET;
+  regs.IY := EXPTBL;
+  CALSLT( regs );
+
+  CHGET := Char ( regs.A );
 End;
 
 (**
@@ -206,27 +246,6 @@ End;
   * @param cursor The new cursor status (@see TCursorStatus);
   *)
 Procedure SetCursorStatus( cursor : TCursorStatus );
-
-  (**
-    * Internal function used to call CHPUT MSXBIOS call.
-    * This function print a character to the text screen output;
-    * @param chChar The character to output to screen;
-    *)
-  Procedure _CHPUT( chChar : Char );
-  Const
-          ctCHPUT   = $00A2;   { Output a character to the console }
-
-  Var
-          regs    : TRegs;
-          EXPTBL  : Byte Absolute $FCC1; { Slot 0 }
-
-  Begin
-    regs.IX := ctCHPUT;
-    regs.IY := EXPTBL;
-    regs.A  := Byte( chChar );
-    CALSLT( regs );
-  End;
-
 Var
      nCount      : Byte;
      strCtrlCode : String[3];
@@ -242,7 +261,7 @@ Begin   { Procedure entry point }
   strCtrlCode := #27 + strCtrlCode;
 
   For nCount := 1 To Length( strCtrlCode ) Do
-    _CHPUT( strCtrlCode[nCount] );
+    CHPUT( strCtrlCode[nCount] );
 End;
 
 (**

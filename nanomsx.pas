@@ -114,7 +114,7 @@ end;
 
 (* Finds the last occurence of a char into a string. *)
 
-function LastPos(Character: char; Phrase: TString): integer;
+function RPos(Character: char; Phrase: TString): integer;
 var
     i: integer;
     Found: boolean;
@@ -124,12 +124,12 @@ begin
     repeat
         if Phrase[i] = Character then
         begin
-            LastPos := i + 1;
+            RPos := i + 1;
             Found := true;
         end;
         i := i - 1;
     until Found;
-    if Not Found then LastPos := 0;
+    if Not Found then RPos := 0;
 end;
 
 (* Finds the first occurence of a char which is different into a string. *)
@@ -154,7 +154,7 @@ end;
 
 (* Finds the last occurence of a char which is different into a string. *)
 
-function LastDifferentPos(Character: char; Phrase: TString): integer;
+function RDifferentPos(Character: char; Phrase: TString): integer;
 var
     i: integer;
     Found: boolean;
@@ -164,12 +164,12 @@ begin
     repeat
         if Phrase[i] <> Character then
         begin
-            LastDifferentPos := i;
+            RDifferentPos := i;
             Found := true;
         end;
         i := i - 1;
     until Found or (i <= 1);
-    if Not Found then LastDifferentPos := 0;
+    if Not Found then RDifferentPos := 0;
 end;
 
 procedure CheatAPPEND (FileName: TFileName);
@@ -198,7 +198,7 @@ begin
     
 (*  Let me see where is the last backslash character...  *)
 
-        LastBackSlashFound := LastPos (chr(92), FileName);
+        LastBackSlashFound := RPos (chr(92), FileName);
         Path := copy (FileName, 1, LastBackSlashFound);
 
 (*  Copy the path to the variable. *)
@@ -450,6 +450,8 @@ begin
     insertmode      := false;
     savedfile       := false;
 
+(*  Save function keys. *)
+
     for i := 1 to maxwidth do
         tabset[i] := (i mod 8) = 1;
 
@@ -464,23 +466,23 @@ begin
     ClearBlink(1, maxlength + 1, maxwidth + 2);
     StatusWindowPtr := MakeWindow(0, 1, maxwidth + 2, maxlength + 1, 'Main nanoMSX help text');
     WritelnWindow(StatusWindowPtr, 'Commands:');
-    WritelnWindow(StatusWindowPtr, 'Ctrl-S - Save current file.         | Ctrl-O - Offer to write file ("Save as")');
-    WritelnWindow(StatusWindowPtr, 'Ctrl-R - Read new file. (TODO)      | Ctrl+Z - Close buffer, exit from nano.');
-    WritelnWindow(StatusWindowPtr, 'Ctrl+G - Display help text.         | Ctrl+C - Report cursor position.');
-    WritelnWindow(StatusWindowPtr, 'Ctrl+A - To start of line.          | Ctrl+Y - One page up.');
-    WritelnWindow(StatusWindowPtr, 'Ctrl+E - To end of line.            | Ctrl+V - One page down.');
-    WritelnWindow(StatusWindowPtr, 'Ctrl+F - One word backward          | Ctrl+D - One word forward.');
-    WritelnWindow(StatusWindowPtr, 'TAB - Indent marked region          | SELECT+TAB - Unindent marked region.');
-    WritelnWindow(StatusWindowPtr, 'Cursor right - Character forward.   | Cursor up   - One line up.');
-    WritelnWindow(StatusWindowPtr, 'Cursor left  - Character backward.  | Cursor down - One line down.');
-    WritelnWindow(StatusWindowPtr, 'HOME - To start of file.            | CLS - To end of file.');
-    WritelnWindow(StatusWindowPtr, 'Ctrl+J - Align line.                | Ctrl+W - Start forward search.');
-    WritelnWindow(StatusWindowPtr, 'Ctrl+N - Start a replacing session. | Ctrl+Q - Start backward search.');
-    WritelnWindow(StatusWindowPtr, 'BS - Delete character before cursor.| SELECT+W - Next occurrence forward.');
-    WritelnWindow(StatusWindowPtr, 'DEL - Delete character under cursor.| SELECT+Q - Next occurrence backward. TODO');
-    WritelnWindow(StatusWindowPtr, 'SELECT-DEL - Delete current line.');
+    WritelnWindow(StatusWindowPtr, 'Ctrl-S - Save current file         | Ctrl-O - Save as file (F3)');
+    WritelnWindow(StatusWindowPtr, 'Ctrl-R - Read new file (TODO)      | Ctrl+Z - Close and exit from nano (F2)');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+G - Display help text (F1)    | Ctrl+C - Report cursor position (F5)');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+A - To start of line          | Ctrl+Y - One page up');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+E - To end of line            | Ctrl+V - One page down');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+F - One word backward         | Ctrl+D - One word forward');
+    WritelnWindow(StatusWindowPtr, 'TAB - Indent marked region         | SELECT+TAB - Unindent marked region');
+    WritelnWindow(StatusWindowPtr, 'Cursor right - Character forward   | Cursor up   - One line up');
+    WritelnWindow(StatusWindowPtr, 'Cursor left  - Character backward  | Cursor down - One line down');
+    WritelnWindow(StatusWindowPtr, 'HOME - To start of file            | CLS - To end of file');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+J - Align line (F4)           | Ctrl+W - Start forward search (F6)');
+    WritelnWindow(StatusWindowPtr, 'Ctrl+N - Start a replacing session | Ctrl+Q - Start backward search (F8)');
+    WritelnWindow(StatusWindowPtr, 'BS - Delete character before cursor| SELECT+W - Next occurrence forward');
+    WritelnWindow(StatusWindowPtr, 'DEL - Delete character under cursor| SELECT+Q - Next occurrence backward');
+    WritelnWindow(StatusWindowPtr, 'SELECT-DEL - Delete current line   | SELECT-G - Go to specified line (F7) (TODO)');
 {
-    WritelnWindow(StatusWindowPtr, '');
+    
     WritelnWindow(StatusWindowPtr, '');
     WritelnWindow(StatusWindowPtr, '');
     WritelnWindow(StatusWindowPtr, '');
@@ -517,6 +519,7 @@ begin
             delete(linebuffer [currentline]^, column, 1);
 
 (* redraw current line if in insert mode *)
+
         if insertmode then
             quick_display(1, screenline, linebuffer [currentline]^);
 
@@ -653,7 +656,7 @@ procedure CursorRight;
 begin
     column := column + 1;
 
-    if column > 79 then
+    if column > maxwidth + 1 then
     begin
         CursorDown;
         column := 1;
@@ -836,11 +839,11 @@ end;
 procedure tabulate;
 begin
    CursorOff;
-   if column < 79 then
+   if column < maxwidth + 1 then
    begin
        repeat
            column := column + 1;
-       until (tabset [column]= true) or (column = 79);
+       until (tabset [column]= true) or (column = maxwidth + 1);
    end;
    CursorOn;
 end;
@@ -1129,7 +1132,7 @@ begin
 
             GotoWindowXY(EditWindowPtr, 1, screenline);
             ClrEolWindow(EditWindowPtr);
-            temp := copy(linebuffer[currentline]^, 1, 79);
+            temp := copy(linebuffer[currentline]^, 1, maxlength + 1);
             WriteWindow(EditWindowPtr, temp);
         end;
     end;
@@ -1152,7 +1155,7 @@ begin
 (*  Remove espacos em branco no inicio e no fim do texto. *)    
         
     i := DifferentPos(chr(32), temp) - 1; 
-    j := LastDifferentPos(chr(32), temp) + 1;
+    j := RDifferentPos(chr(32), temp) + 1;
 
     if i > 1 then
         delete(temp, 1, i)
@@ -1194,7 +1197,7 @@ begin
                         
 (*  Localiza os espaços em branco na frase e salva suas posições. *)                        
                         
-                        for i := 1 to (LastDifferentPos(chr(32), temp)) do
+                        for i := 1 to (RDifferentPos(chr(32), temp)) do
                             if ord(temp[i]) = 32 then
                             begin
                                 justifyvector[j] := i;
@@ -1273,6 +1276,11 @@ begin
     StatusLine(temp);
 end;
 
+procedure GoToLine;
+begin
+
+end;
+
 procedure handlefunc(keynum: byte);
 var
     key         : byte;
@@ -1316,8 +1324,9 @@ begin
                             case key of
                                 DELETE  : RemoveLine;
                                 TAB     : backtab;
-                                81, 113 : WhereIs(forwardsearch, true);
-                                87, 119 : WhereIs(backwardsearch, true);
+                                71, 103 : GoToLine;
+                                81, 113 : WhereIs(backwardsearch, true);
+                                87, 119 : WhereIs(forwardsearch, true);
                                 else    delay(100);
                             end;
                         end;
