@@ -23,72 +23,13 @@
 
 program teste;
 
-type
-	str15 = string[15];
+{$i d:conio.inc}
 
 var i : integer;
     c : char;
-
-{$i d:types.inc}
-{$i d:msxbios.inc}
-{$i d:conio.pas}
-
-function msx_version:byte;
-var versie:byte;
-begin
-  inline($3e/$80/              { LD A,&H80        }
-         $21/$2d/$00/          { LD HL,&H002D     }
-         $cd/$0c/$00/          { CALL &H000C      }
-         $32/versie/           { LD (VERSIE),A    }
-         $fb);                 { EI               }
-  msx_version:=versie+1
-end;
-
-procedure SetFnKey(i: byte; st: str15);
-var 
-    ei, a, c: integer;
-    cm: str15;
-
-begin
-  if (length(st) = 0) then
-    exit;
-
-  fillchar(cm, sizeof(cm), chr(0));
-
-  for a:=1 to 14 do
-    cm := cm + chr(0);
-
-  st := st + cm;
-  ei := $F87f + 16 * (i - 1) - 1;
-  
-  for a := 1 to 15 do
-  begin
-    c := ord(copy(st, a, 1)); 
-    mem[ei + a] := c;
-  end;
-  
-  mem[ei + a + 1] := 0;
-end;
-
-function GetFnKey(i: byte): str15;
-var 
-    ei, a, c: integer;
-    cm: str15;
-
-begin
-    fillchar(cm, sizeof(cm), chr(0));
-
-    for a:=1 to 14 do
-        cm := cm + chr(0);
-  
-    ei := $F87f + 16 * (i - 1) - 1;
-  
-    for a := 1 to 15 do
-        cm[a] := chr(mem[ei + a]);
+    Regs: TRegs;
+    ScreenStatus: TScreenStatus;
     
-    GetFnKey := cm;
-end;
-
 function pressed_function_key:byte;
 var nummer:byte;
 begin
@@ -117,19 +58,34 @@ end;
 
 
 BEGIN
-    writeln(GetFnKey(1));
-    SetFnKey(1, chr(11) + chr(13));
+    for i := 1 to 10 do
+        SetFnKey(i, 'Fudeba');
+
     SetFnKeyStatus (true);
+
+    readln;
+    
+    regs.IX := ctINIFNK;
+    CALSLT (regs);
+    
     writeln('MSX version: ', msx_version);
-    i := -20;
+
+    GetScreenStatus(ScreenStatus);
+    writeln('Width: ', ScreenStatus.nWidth);
+    writeln('Background Color: ', ScreenStatus.nBkColor);
+    writeln('Border Color: ', ScreenStatus.nBdrColor);
+    writeln('Foreground Color: ', ScreenStatus.nFgColor);
+    writeln('Function keys: ', ScreenStatus.bFnKeyOn);
+
+{    i := -20;
     writeln ('i=',i, ' abs(i)=', abs(i));
-{    
+    
     for i := 1 to 20 do
         writeln(pressed_function_key);
        
     for i := 1 to 20 do
         writeln(ord(readkey));
-}    
+    
     c := readkey;
     if ord(c) = 11 then
     begin
@@ -144,6 +100,7 @@ BEGIN
         89, 121:    writeln('Y');
         90, 122:    writeln('Z');
     end;
+}
     SetFnKeyStatus (false);
 
 END.

@@ -59,7 +59,7 @@ type
     KeystrokeLines      = (main, search, replace, align);
     Directions          = (forwardsearch, backwardsearch);
 
-{$i d:types.inc}
+{$i d:conio.inc}
 {$i d:dos.inc}
 {$i d:dos2err.inc}
 {$i d:fastwrit.inc}
@@ -84,21 +84,18 @@ var
     textfile:           text;
     searchstring,
     replacestring,
-    filename:           str80;
+    filename:           TFileName;
     savedfile,
     insertmode:         boolean;
-    tempnumber0:        string[5];
+    tempnumber0:        string[6];
     temp:               linestring;
 
     Registers:          TRegs;
+    ScreenStatus:       TScreenStatus;
    
     EditWindowPtr,
     StatusWindowPtr:    Pointer;
    
-    FORCLR : Byte Absolute    $F3E9; { Foreground color                        }
-    BAKCLR : Byte Absolute    $F3EA; { Background color                        }
-    BDRCLR : Byte Absolute    $F3EB; { Border color                            }
-
 function Readkey: char;
 var
     bt: integer;
@@ -267,15 +264,20 @@ begin
     ClrEolWindow(EditWindowPtr);
 end;
 
-procedure StatusLine (message: str80);
-var
-    i, lengthmessage, position: byte;
-    
+procedure ClearStatusLine;
 begin
     ClearBlink(1, maxlength + 1, maxwidth + 2);
     FillChar(temp, maxwidth + 3, #23);
     temp[1] := #26;     temp[maxwidth + 2] := #27;
     WriteVram(0, (maxwidth + 2) * maxlength, Addr(temp[1]), maxwidth + 3);
+end;
+
+procedure StatusLine (message: str80);
+var
+    i, lengthmessage, position: byte;
+    
+begin
+    ClearStatusLine;
 
     message := concat('[ ', message, ' ]');
     lengthmessage := length(message);
@@ -311,8 +313,8 @@ begin
                         BlinkLength := 2;
                         BlinkSequence[1] := 1;  BlinkSequence[2] := 11;
                         BlinkSequence[3] := 28; BlinkSequence[4] := 41;
-                        Line1 := '^G Help   ~W Next forward  ^Q Backwards ^T Go To Line        ';
-                        Line2 := '^C Cancel ~Q Bext backward ^N Replace   ^X Exit              ';
+                        Line1 := '^G Help   ~W Next forward  ^Q Backwards ^T Go To Line             ';
+                        Line2 := '^C Cancel ~Q Bext backward ^N Replace   ^X Exit                   ';
                     end;
         replace:    begin
                         BlinkLength := 2;
@@ -422,9 +424,14 @@ var
     i: integer;
 
 begin
-    clrscr;
+    GetScreenStatus(ScreenStatus);
+    
+    if ScreenStatus.bFnKeyOn then
+        SetFnKeyStatus (false);
+    
+    Width(80);
     ClearAllBlinks;
-    SetBlinkColors(BAKCLR, FORCLR);
+    SetBlinkColors(ScreenStatus.nBkColor, ScreenStatus.nFgColor);
     SetBlinkRate(5, 0);
     
     fillchar(temp, sizeof(temp), ' ');
@@ -450,7 +457,19 @@ begin
     insertmode      := false;
     savedfile       := false;
 
-(*  Save function keys. *)
+(*  TODO: Turn off function key line. *)        
+    
+
+(*  Set new function keys. *)
+
+    SetFnKey(1, chr(7));
+    SetFnKey(2, chr(26));
+    SetFnKey(3, chr(15));
+    SetFnKey(4, chr(10));
+    SetFnKey(5, chr(3));
+    SetFnKey(6, chr(23));
+    SetFnKey(7, chr(20));
+    SetFnKey(8, chr(17));
 
     for i := 1 to maxwidth do
         tabset[i] := (i mod 8) = 1;
@@ -463,6 +482,7 @@ procedure Help;
 var
     c: char;
 begin
+    ClearStatusLine;
     ClearBlink(1, maxlength + 1, maxwidth + 2);
     StatusWindowPtr := MakeWindow(0, 1, maxwidth + 2, maxlength + 1, 'Main nanoMSX help text');
     WritelnWindow(StatusWindowPtr, 'Commands:');
@@ -480,10 +500,9 @@ begin
     WritelnWindow(StatusWindowPtr, 'Ctrl+N - Start a replacing session | Ctrl+Q - Start backward search (F8)');
     WritelnWindow(StatusWindowPtr, 'BS - Delete character before cursor| SELECT+W - Next occurrence forward');
     WritelnWindow(StatusWindowPtr, 'DEL - Delete character under cursor| SELECT+Q - Next occurrence backward');
-    WritelnWindow(StatusWindowPtr, 'SELECT-DEL - Delete current line   | SELECT-G - Go to specified line (F7) (TODO)');
+    WritelnWindow(StatusWindowPtr, 'SELECT-DEL - Delete current line   | Ctrl+T - Go to specified line (F7) (TODO)');
+    WritelnWindow(StatusWindowPtr, 'SELECT-D - Report line/word/char count (TODO)');
 {
-    
-    WritelnWindow(StatusWindowPtr, '');
     WritelnWindow(StatusWindowPtr, '');
     WritelnWindow(StatusWindowPtr, '');
     WritelnWindow(StatusWindowPtr, '');
@@ -723,7 +742,7 @@ end;
 procedure WriteOut (AskForName: boolean);
 var
     i: integer;
-    tempfilename: str80;
+    tempfilename: TFileName;
     
 begin
     if AskForName then
@@ -768,31 +787,42 @@ begin
 end;
 
 procedure ExitToDOS;
+var
+    i: byte;
+
 begin
     if not savedfile then
         WriteOut(false); 
+
     EraseWindow(EditWindowPtr);
+
+(*  Restore function keys. *)
+
     ClearAllBlinks;
-    clrscr;
-    halt;
+    ClrScr;
+    
+    InitFnKeys;
+   
+    SetFnKeyStatus (true);
+    Halt;
 end;
 
 procedure PageUp;
 begin
-   currentline := currentline - maxlength - 2;
-   if currentline <= screenline then
-      BeginFile
-   else
-      DrawScreen;
- end;
+    currentline := currentline - maxlength - 2;
+    if currentline <= screenline then
+        BeginFile
+    else
+        DrawScreen;
+end;
 
 procedure PageDown;
 begin
-  currentline := currentline + maxlength - 2;
-  if currentline + 12 >= highestline then
-     EndFile
-  else
-     DrawScreen;
+    currentline := currentline + maxlength - 2;
+    if currentline + 12 >= highestline then
+        EndFile
+    else
+        DrawScreen;
 end;
 
 procedure prevword;
@@ -1251,27 +1281,65 @@ end;
 
 procedure Location;
 var
-    tempnumber1, tempnumber2: string[5];
+    tempnumber1, tempnumber2: string[6];
     tempint, tempint2: byte;
+    i: integer;
+    abovechar, totalchar, percentchar: real;
 
 begin
     fillchar(temp, sizeof(temp), #32);
-    str(currentline, tempnumber0);
-    str(highestline, tempnumber1);
+
+(*  Line count. *)    
 
 (*  Calculating percentage. *)    
 
+    str(currentline, tempnumber0);
+    str(highestline, tempnumber1);
     tempint := ((currentline * 100) div highestline);
     str(tempint, tempnumber2);
-    temp := concat(' line ',tempnumber0,'/',tempnumber1, ' (', tempnumber2,'%), ');
+    
+    temp := concat('line ',tempnumber0,'/',tempnumber1, ' (', tempnumber2,'%),');
+
+(*  Column count. *)  
 
     tempint2 := length(linebuffer[currentline]^) + 1;
+
+(*  Calculating percentage. *)        
+
     str(column, tempnumber0);
     str(tempint2, tempnumber1);
+   
     tempint := ((column * 100) div tempint2);
     str(tempint, tempnumber2);
     
-    temp := concat(temp, 'col ',tempnumber0,'/',tempnumber1, ' (', tempnumber2,'%)');
+    temp := concat(temp, ' col ',tempnumber0,'/',tempnumber1, ' (', tempnumber2,'%)');
+
+(*  Char count. *)
+
+    abovechar := 0;
+    
+    for i := 1 to currentline - 1 do
+        abovechar := abovechar + length(linebuffer[i]^);
+
+    totalchar := abovechar;
+    abovechar := abovechar + column;
+    
+    for i := currentline to highestline do
+        totalchar := totalchar + length(linebuffer[i]^);
+    
+(*  Calculating percentage. *)            
+
+    percentchar := round(int(((abovechar * 100) / totalchar)));
+
+    str(abovechar:6:0,      tempnumber0);
+    str(totalchar:6:0,      tempnumber1);
+    str(percentchar:6:0,    tempnumber2);
+    
+    delete(tempnumber0, 1, RPos(' ', tempnumber0) - 1);
+    delete(tempnumber1, 1, RPos(' ', tempnumber1) - 1);
+    delete(tempnumber2, 1, RPos(' ', tempnumber2) - 1);
+
+    temp := concat(temp, ' char ', tempnumber0,'/', tempnumber1, ' (', tempnumber2,'%)');
 
     StatusLine(temp);
 end;
@@ -1313,7 +1381,7 @@ begin
 (*        CONTROLP    : *)
         CONTROLQ    :   WhereIs(backwardsearch, false);
 (*        CONTROLR    : Ler novo arquivo. *)
-(*        CONTROLT    : Tá sobrando... *)
+        CONTROLT    :   GoToLine;
 (*        CONTROLU    : Colar conteúdo do buffer. Vai demorar... *)
         CONTROLV    :   PageDown;
         CONTROLW    :   WhereIs(forwardsearch, false);
@@ -1324,7 +1392,6 @@ begin
                             case key of
                                 DELETE  : RemoveLine;
                                 TAB     : backtab;
-                                71, 103 : GoToLine;
                                 81, 113 : WhereIs(backwardsearch, true);
                                 87, 119 : WhereIs(forwardsearch, true);
                                 else    delay(100);
@@ -1341,7 +1408,12 @@ var
     iscommand   : boolean;
 
 begin
-
+    if msx_version <= 1 then
+    begin
+        writeln('Only MSX 2 and above.');
+        halt;
+    end;
+    
     if (paramcount <> 1) then
     begin
         writeln('Usage: nanomsx FILENAME');
