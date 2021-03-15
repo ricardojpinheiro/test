@@ -4,20 +4,6 @@ Type
 var 
     MsxIoResult: byte;
 
-Function WhereX : Byte;
-Var
-	CSRX : Byte Absolute $f3dd;
-Begin
-	WhereX := CSRX;
-End;
-
-Function WhereY : Byte;
-Var  
-	CSRY : Byte Absolute $f3dc;
-Begin
-	WhereY := CSRY;
-End;
-
 Procedure WriteVram (VramBlockUsed: Byte; VramAddr,RamAddr,ByteCount:Integer);
 Var
 	Expansion, AddrHi, AddrMid, AddrLo: Byte;
@@ -36,7 +22,7 @@ Begin
         );
 End;
 
-Procedure FastWrite (St : anystr);
+Procedure FastWrite (St : TString);
 Var
 	CSRX : Byte Absolute $F3DD;
     	CSRY : Byte Absolute $F3DC;
@@ -56,7 +42,7 @@ Begin
 End; {FastWrite}
 
 
-Procedure FastWriteln (St : anystr);
+Procedure FastWriteln (St : TString);
 Var
 	CSRX : Byte Absolute $F3DD;
 	CSRY : Byte Absolute $F3DC;

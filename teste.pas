@@ -64,10 +64,10 @@ BEGIN
     SetFnKeyStatus (true);
 
     readln;
-    
+{    
     regs.IX := ctINIFNK;
     CALSLT (regs);
-    
+}    
     writeln('MSX version: ', msx_version);
 
     GetScreenStatus(ScreenStatus);
@@ -77,9 +77,9 @@ BEGIN
     writeln('Foreground Color: ', ScreenStatus.nFgColor);
     writeln('Function keys: ', ScreenStatus.bFnKeyOn);
 
-{    i := -20;
+    i := -20;
     writeln ('i=',i, ' abs(i)=', abs(i));
-    
+{    
     for i := 1 to 20 do
         writeln(pressed_function_key);
        

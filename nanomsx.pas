@@ -1,5 +1,4 @@
-(*
- * nanomsx
+(* nanomsx
  *
  * This wannabe GNU nano-like text editor is based on Qed-Pascal
  * (http://texteditors.org/cgi-bin/wiki.pl?action=browse&diff=1&id=Qed-Pascal).
@@ -53,11 +52,11 @@ const
 
 type
     str80               = string [80];
-    anystr              = string [255];
     linestring          = string [128];
     lineptr             = ^linestring;
     KeystrokeLines      = (main, search, replace, align);
     Directions          = (forwardsearch, backwardsearch);
+    LocationOptions     = (Position, HowMany);
 
 {$i d:conio.inc}
 {$i d:dos.inc}
@@ -76,19 +75,22 @@ const
 var
     currentline,
     highestline,
-    screenline:         integer;
+    screenline:         byte;
     column:             byte;
     linebuffer:         array [1.. maxlines] of lineptr;
     emptyline:          lineptr;
     tabset:             array [1..maxwidth] of boolean;
     textfile:           text;
     searchstring,
-    replacestring,
+    replacestring:      str80;
     filename:           TFileName;
     savedfile,
     insertmode:         boolean;
     tempnumber0:        string[6];
     temp:               linestring;
+    i, j:               integer;
+    i, j:               integer;
+    c:                  char;
 
     Registers:          TRegs;
     ScreenStatus:       TScreenStatus;
@@ -113,7 +115,7 @@ end;
 
 function RPos(Character: char; Phrase: TString): integer;
 var
-    i: integer;
+    i: byte;
     Found: boolean;
 begin
     i := length(Phrase);
@@ -153,8 +155,9 @@ end;
 
 function RDifferentPos(Character: char; Phrase: TString): integer;
 var
-    i: integer;
+    i: byte;
     Found: boolean;
+    
 begin
     i := length(Phrase);
     Found := false;
@@ -247,7 +250,8 @@ End;
 
 procedure GetKey (var key: byte; var iscommand: boolean);
 var
-    inkey : char;
+    inkey: char;
+    
 begin
     iscommand   := false;
     inkey       := readkey;
@@ -268,20 +272,21 @@ procedure ClearStatusLine;
 begin
     ClearBlink(1, maxlength + 1, maxwidth + 2);
     FillChar(temp, maxwidth + 3, #23);
-    temp[1] := #26;     temp[maxwidth + 2] := #27;
+    temp[1]             := #26;
+    temp[maxwidth + 2]  := #27;
     WriteVram(0, (maxwidth + 2) * maxlength, Addr(temp[1]), maxwidth + 3);
 end;
 
 procedure StatusLine (message: str80);
 var
-    i, lengthmessage, position: byte;
+    lengthmessage, position: byte;
     
 begin
     ClearStatusLine;
 
-    message := concat('[ ', message, ' ]');
-    lengthmessage := length(message);
-    position := (maxwidth - lengthmessage) div 2;
+    message         := concat('[ ', message, ' ]');
+    lengthmessage   := length(message);
+    position        := (maxwidth - lengthmessage) div 2;
 
     GotoXY(position, maxlength + 1);
     FastWrite(message);
@@ -292,7 +297,7 @@ procedure DisplayKeys (whichkey: KeystrokeLines);
 var
     BlinkSequence: array [1..6] of byte;
     Line1, Line2: str80;
-    i, BlinkLength: byte;
+    BlinkLength: byte;
     
 begin
     for i := 2 to 3 do
@@ -305,9 +310,9 @@ begin
                         BlinkLength := 2;
                         BlinkSequence[1] := 1;  BlinkSequence[2] := 9;
                         BlinkSequence[3] := 22; BlinkSequence[4] := 34;
-                        BlinkSequence[5] := 43; BlinkSequence[6] := 54;
-                        Line1 := '^G Help ^O Write Out ^W Where Is ^K Cut   ^T Execute ^C Location  ';
-                        Line2 := '^Z Exit ^R Read File ^N Replace  ^U Paste ^J Justify ~G Go To Line';
+                        BlinkSequence[5] := 43; BlinkSequence[6] := 55;
+                        Line1 := '^G Help ^O Write Out ^W Where Is ^K CUT   ^C Location ~D Line count';
+                        Line2 := '^Z Exit ^R READ FILE ^N Replace  ^U PASTE ^J Align    ^T Go To Line';
                     end;
         search:     begin
                         BlinkLength := 2;
@@ -339,12 +344,10 @@ begin
     end;
 end;
 
-procedure DrawScreen;
-var
-   i:  integer;
+procedure DrawScreen (j: byte);
 begin
     ClrWindow(EditWindowPtr);
-    for i := 1 to (maxlength - 1) do
+    for i := 1 to (maxlength - j) do
         quick_display(1 , i, linebuffer [currentline - screenline + i]^);
 end;
 
@@ -355,7 +358,6 @@ end;
 
 procedure ReadFile (name: str80);
 var
-    i: integer;
     maxlinesnotreached: boolean;
 
 begin
@@ -389,7 +391,7 @@ begin
 
             currentline := currentline + 1;
             
-            if (currentline > maxlines) then
+            if (currentline >= maxlines) then
             begin
                 maxlinesnotreached := true;
                 exit;
@@ -411,18 +413,16 @@ begin
 
     close(textfile);
 
-    highestline := currentline;
+    highestline := currentline - 1;
     currentline := 1;
     column      := 1;
     screenline  := 1;
+    insertmode  := true;
 
-    DrawScreen;
+    DrawScreen(1);
 end;
 
 procedure InitTextEditor;
-var
-    i: integer;
-
 begin
     GetScreenStatus(ScreenStatus);
     
@@ -457,9 +457,6 @@ begin
     insertmode      := false;
     savedfile       := false;
 
-(*  TODO: Turn off function key line. *)        
-    
-
 (*  Set new function keys. *)
 
     SetFnKey(1, chr(7));
@@ -479,8 +476,6 @@ begin
 end;
 
 procedure Help;
-var
-    c: char;
 begin
     ClearStatusLine;
     ClearBlink(1, maxlength + 1, maxwidth + 2);
@@ -500,8 +495,8 @@ begin
     WritelnWindow(StatusWindowPtr, 'Ctrl+N - Start a replacing session | Ctrl+Q - Start backward search (F8)');
     WritelnWindow(StatusWindowPtr, 'BS - Delete character before cursor| SELECT+W - Next occurrence forward');
     WritelnWindow(StatusWindowPtr, 'DEL - Delete character under cursor| SELECT+Q - Next occurrence backward');
-    WritelnWindow(StatusWindowPtr, 'SELECT-DEL - Delete current line   | Ctrl+T - Go to specified line (F7) (TODO)');
-    WritelnWindow(StatusWindowPtr, 'SELECT-D - Report line/word/char count (TODO)');
+    WritelnWindow(StatusWindowPtr, 'SELECT-DEL - Delete current line   | Ctrl+T - Go to specified line (F7)');
+    WritelnWindow(StatusWindowPtr, 'SELECT-D - Report line/word/char count');
 {
     WritelnWindow(StatusWindowPtr, '');
     WritelnWindow(StatusWindowPtr, '');
@@ -512,11 +507,11 @@ begin
     EraseWindow(StatusWindowPtr);
 end;
 
-procedure character(inkey : char);
+procedure character(inkey: char);
 begin
     CursorOff;
     if column > maxwidth then
-        delay(30)
+        delay(10)
     else
     begin
         GotoWindowXY(EditWindowPtr, column, screenline);
@@ -553,25 +548,25 @@ end;
 procedure BeginFile;
 begin
     currentline := 1;
-    column      := 1;
     screenline  := 1;
-    DrawScreen;
+    column      := 1;
+    DrawScreen(1);
 end;
 
 procedure EndFile;
 begin
-    currentline := highestline;
-    screenline  := maxlength;
+    currentline := highestline + 1;
+    screenline  := 12;
     column      := 1;
-    DrawScreen;
+    DrawScreen(2);
 end;
 
 procedure BeginLine;
 begin
     currentline := WhereYWindow(EditWindowPtr);
+    screenline  := currentline;
     column      := 1;
-    screenline  := WhereYWindow(EditWindowPtr);
-    DrawScreen;
+    DrawScreen(1);
 end;
 
 procedure EndLine;
@@ -589,7 +584,7 @@ begin
     currentline := currentline - 1;
     if screenline = 1 then
     begin
-        gotoWindowXY(EditWindowPtr, 1, 1);
+        GotoWindowXY(EditWindowPtr, 1, 1);
         ScrollWindowDown(EditWindowPtr);
         quick_display(1, 1, linebuffer [currentline]^);
     end
@@ -615,8 +610,6 @@ begin
 end;
 
 procedure InsertLine;
-var
-    i: integer;
 begin
     GotoWindowXY(EditWindowPtr, column, screenline + 1);
     InsLineWindow(EditWindowPtr);
@@ -625,7 +618,7 @@ begin
         linebuffer[i + 1] := linebuffer[i];
 
     linebuffer[currentline] := emptyline;
-    highestline := highestline + 1;
+    highestline             := highestline + 1;
 end;
 
 procedure Return;
@@ -639,8 +632,6 @@ begin
 end;
 
 procedure deleteline;
-var
-   i: integer;
 begin
     DelLineWindow(EditWindowPtr);
 
@@ -648,16 +639,16 @@ begin
         quick_display(1, maxlength,linebuffer [currentline + ((maxlength + 1) - screenline)]^);
 
     if linebuffer[currentline] <> emptyline then
-        linebuffer[currentline]^ := emptyline^;
+        linebuffer[currentline]^    := emptyline^;
 
     for i := currentline to highestline + 1 do
-        linebuffer[i] := linebuffer [i + 1];
+        linebuffer[i]               := linebuffer [i + 1];
 
-    linebuffer [highestline + 2] := emptyline;
-    highestline := highestline - 1;
+    linebuffer [highestline + 2]    := emptyline;
+    highestline                     := highestline - 1;
 
     if currentline > highestline then
-        highestline := currentline;
+        highestline                 := currentline;
  end;
 
 procedure CursorLeft;
@@ -688,12 +679,6 @@ begin
         insertmode := false
     else
         insertmode := true;
-
-    GotoXY(79, 1);
-    if insertmode then
-        write('I')
-    else
-        write('O');
 end;
 
 procedure del;
@@ -702,7 +687,7 @@ begin
     begin
         if (length(linebuffer[currentline]^) + length(linebuffer[currentline+1]^)) < maxwidth then
         begin
-            linebuffer[currentline]^ := linebuffer[currentline]^ + linebuffer[currentline+1]^;
+            linebuffer[currentline]^    := linebuffer[currentline]^ + linebuffer[currentline+1]^;
             quick_display(1, screenline, linebuffer [currentline]^);
             CursorDown;
             deleteline;
@@ -714,11 +699,11 @@ begin
     if linebuffer[currentline] = emptyline then
     begin
         NewBuffer(linebuffer[currentline]);
-        linebuffer[currentline]^ := '';
+        linebuffer[currentline]^        := '';
     end;
 
     while length(linebuffer[currentline]^) < column do
-        linebuffer[currentline]^ := linebuffer[currentline]^ + ' ';
+        linebuffer[currentline]^        := linebuffer[currentline]^ + ' ';
 
     delete(linebuffer [currentline]^, column, 1);
 
@@ -730,7 +715,7 @@ end;
 procedure backspace;
 begin
     if column > 1 then
-        column := column - 1
+        column  := column - 1
     else
     begin
         CursorUp;
@@ -741,7 +726,6 @@ end;
 
 procedure WriteOut (AskForName: boolean);
 var
-    i: integer;
     tempfilename: TFileName;
     
 begin
@@ -787,9 +771,6 @@ begin
 end;
 
 procedure ExitToDOS;
-var
-    i: byte;
-
 begin
     if not savedfile then
         WriteOut(false); 
@@ -809,25 +790,30 @@ end;
 
 procedure PageUp;
 begin
-    currentline := currentline - maxlength - 2;
+    currentline     := currentline - (maxlength - 1);
     if currentline <= screenline then
         BeginFile
     else
-        DrawScreen;
+        DrawScreen(1);
 end;
 
 procedure PageDown;
 begin
-    currentline := currentline + maxlength - 2;
-    if currentline + 12 >= highestline then
+    currentline     := currentline + (maxlength - 1);
+    if currentline >= highestline then
         EndFile
     else
-        DrawScreen;
+        if (highestline - currentline) < maxlength then
+            DrawScreen(2)
+        else
+            DrawScreen(1);
 end;
 
-procedure prevword;
+procedure PreviousWord;
 begin
+
 (* if i am in a word then skip to the space *)
+
     while (not ((linebuffer[currentline]^[column] = ' ') or
                (column >= length(linebuffer[currentline]^) ))) and
          ((currentline <> 1) or
@@ -835,6 +821,7 @@ begin
       CursorLeft;
 
 (* find end of previous word *)
+
    while ((linebuffer[currentline]^[column] = ' ') or
           (column >= length(linebuffer[currentline]^) )) and
          ((currentline <> 1) or
@@ -842,6 +829,7 @@ begin
       CursorLeft;
 
 (* find start of previous word *)
+
    while (not ((linebuffer[currentline]^[column] = ' ') or
                (column >= length(linebuffer[currentline]^) ))) and
          ((currentline <> 1) or
@@ -853,13 +841,16 @@ end;
 
 procedure NextWord;
 begin
+
 (* if i am in a word, then move to the whitespace *)
+
    while (not ((linebuffer[currentline]^[column] = ' ') or
                (column >= length(linebuffer[currentline]^)))) and
          (currentline < highestline) do
       CursorRight;
 
 (* skip over the space to the other word *)
+
    while ((linebuffer[currentline]^[column] = ' ') or
           (column >= length(linebuffer[currentline]^))) and
          (currentline < highestline) do
@@ -904,7 +895,7 @@ end;
 {
 procedure locate;
 var
-    i, j, pointer, position, len    : integer;
+    pointer, position, len          : integer;
     c                               : char;
 
 begin
@@ -969,8 +960,7 @@ end;
 }
 procedure WhereIs (direction: Directions; nextoccurrence: boolean);
 var
-    c                   : char;
-    i, j, pointer, len  : integer;
+    pointer, len        : integer;
     tempsearchstring    : str80;
     stopsearch          : integer;
  
@@ -1025,7 +1015,7 @@ begin
             if currentline >= maxlength then
             begin
                 screenline := maxlength - 1;
-                DrawScreen;
+                DrawScreen(1);
             end
             else
                 screenline := currentline;
@@ -1033,10 +1023,7 @@ begin
 
     (* Redraw the StatusLine, bottom of the window and display keys *)
 
-            ClearBlink(1, maxlength + 1, maxwidth + 2);
-            FillChar(temp, maxwidth + 3, #23);
-            temp[1] := #26; temp[maxwidth + 2] := #27;
-            WriteVram(0, (maxwidth + 2) * maxlength, Addr(temp[1]), maxwidth + 3);
+            ClearStatusLine;
             DisplayKeys (main);
             exit;
         end;
@@ -1056,7 +1043,7 @@ end;
 
 procedure SearchAndReplace;
 var
-    i, j, position, line                : integer;
+    position, line                      : integer;
     searchlength, replacementlength     : byte;
     choice                              : char;
     tempsearchstring                    : str80;
@@ -1112,7 +1099,7 @@ begin
             else
                 screenline := currentline;
 
-            DrawScreen;
+            DrawScreen(1);
             column := position;
             Blink(column + 1, screenline + 1, searchlength);
 
@@ -1171,10 +1158,9 @@ end;
 procedure AlignText;
 var
     lengthline, blankspaces: byte;
-    c: char;
     justifyvector: array [1..maxwidth] of byte;
 
-    i, j, k, l: byte;
+    k, l: byte;
 
 begin
 (*  Testar um pouco mais. *)
@@ -1267,7 +1253,7 @@ begin
         quick_display(1, screenline + 1, linebuffer[currentline + 1]^);
     end
     else
-        DrawScreen;
+        DrawScreen(1);
     
     case ord(c) of
         76, 108: temp := 'Text aligned to the left.';
@@ -1279,12 +1265,17 @@ begin
     StatusLine(temp);
 end;
 
-procedure Location;
+procedure Location (Types: LocationOptions);
+type
+    ASCII = set of 0..255;
+
 var
     tempnumber1, tempnumber2: string[6];
-    tempint, tempint2: byte;
-    i: integer;
-    abovechar, totalchar, percentchar: real;
+    totalwords              : integer;
+    abovechar, totalchar, 
+    percentchar             : real;
+    temp2                   : linestring;
+    NoPrint, Print, AllChars: ASCII;
 
 begin
     fillchar(temp, sizeof(temp), #32);
@@ -1295,24 +1286,31 @@ begin
 
     str(currentline, tempnumber0);
     str(highestline, tempnumber1);
-    tempint := ((currentline * 100) div highestline);
-    str(tempint, tempnumber2);
+    j := ((currentline * 100) div highestline);
+    str(j, tempnumber2);
     
-    temp := concat('line ',tempnumber0,'/',tempnumber1, ' (', tempnumber2,'%),');
+    if Types = Position then
+        temp := concat('line ', tempnumber0,'/', tempnumber1, ' (', tempnumber2,'%),')
+    else
+        temp := concat(' Lines: ', tempnumber1);
+
+    if Types = Position then
+    begin
 
 (*  Column count. *)  
 
-    tempint2 := length(linebuffer[currentline]^) + 1;
+        j := length(linebuffer[currentline]^) + 1;
 
 (*  Calculating percentage. *)        
 
-    str(column, tempnumber0);
-    str(tempint2, tempnumber1);
+        str(column  , tempnumber0);
+        str(j, tempnumber1);
    
-    tempint := ((column * 100) div tempint2);
-    str(tempint, tempnumber2);
+        i := ((column * 100) div j);
+        str(i , tempnumber2);
     
-    temp := concat(temp, ' col ',tempnumber0,'/',tempnumber1, ' (', tempnumber2,'%)');
+        temp := concat(temp, ' col ',tempnumber0,'/',tempnumber1, ' (', tempnumber2,'%)');
+    end;
 
 (*  Char count. *)
 
@@ -1331,22 +1329,87 @@ begin
 
     percentchar := round(int(((abovechar * 100) / totalchar)));
 
-    str(abovechar:6:0,      tempnumber0);
-    str(totalchar:6:0,      tempnumber1);
-    str(percentchar:6:0,    tempnumber2);
+    str(abovechar:6:0   ,   tempnumber0);
+    str(totalchar:6:0   ,   tempnumber1);
+    str(percentchar:6:0 ,   tempnumber2);
     
-    delete(tempnumber0, 1, RPos(' ', tempnumber0) - 1);
-    delete(tempnumber1, 1, RPos(' ', tempnumber1) - 1);
-    delete(tempnumber2, 1, RPos(' ', tempnumber2) - 1);
+    delete(tempnumber0  , 1, RPos(' ', tempnumber0) - 1);
+    delete(tempnumber1  , 1, RPos(' ', tempnumber1) - 1);
+    delete(tempnumber2  , 1, RPos(' ', tempnumber2) - 1);
+    
+    if Types = Position then
+        temp := concat(temp, ' char ', tempnumber0,'/', tempnumber1, ' (', tempnumber2,'%)')
+    else
+        temp := concat(temp, ' Chars: ', tempnumber1);
 
-    temp := concat(temp, ' char ', tempnumber0,'/', tempnumber1, ' (', tempnumber2,'%)');
+(*  Word count *)
+
+    if Types = HowMany then
+    begin
+        totalwords  := 0;
+        AllChars    := [0..255];
+        NoPrint     := [0..31, 127, 255];
+        Print       := AllChars - NoPrint;
+
+        fillchar(temp2, sizeof(temp2), chr(32));
+
+        for i := 1 to highestline do
+        begin
+            temp2   := linebuffer[i]^;
+            for j   := 1 to length(temp2) do
+                if (temp2[j] = chr(32)) and (ord(temp2[j + 1]) in Print) and (j > 1) then
+                    TotalWords := TotalWords + 1;
+        end;
+        
+        TotalWords := TotalWords + 1;
+        
+        str(TotalWords      , tempnumber0);
+        insert(tempnumber0  , temp  , 1);
+        insert('Words: '    , temp  , 1);
+    end;
 
     StatusLine(temp);
 end;
 
 procedure GoToLine;
-begin
+var
+    destline, destcolumn: integer;
 
+begin
+    destline    := 1;
+    destcolumn  := 1;
+
+    GotoXY(1, maxlength + 1);
+    ClrEol;
+    
+    Blink(1, maxlength + 1, maxwidth + 2);
+    
+    temp := 'Enter line and column number: ';
+    FastWrite(temp);
+    
+    GotoXY(length(temp) + 1, maxlength + 1);
+    readln(destline, destcolumn);
+ 
+    if destline = 1 then
+        destline := destline + 1;
+ 
+    if destline >= highestline then
+        destline := highestline;
+        
+    i := length(linebuffer[destline]^);
+    
+    if destcolumn > i then
+        destcolumn := i;
+ 
+    currentline     := destline - 1;
+    screenline      := 1;
+    column          := destcolumn;
+    
+    DrawScreen(1);
+  
+(* Redraw the StatusLine, bottom of the window and display keys *)
+
+    ClearStatusLine;
 end;
 
 procedure handlefunc(keynum: byte);
@@ -1368,8 +1431,8 @@ begin
         HOME        :   BeginFile;
         CLS         :   EndFile;
         CONTROLA    :   BeginLine;
-        CONTROLB    :   PrevWord;
-        CONTROLC    :   Location; 
+        CONTROLB    :   PreviousWord;
+        CONTROLC    :   Location(Position); 
         CONTROLD    :   del;
         CONTROLE    :   EndLine;    
         CONTROLF    :   NextWord;
@@ -1379,12 +1442,12 @@ begin
         CONTROLO    :   WriteOut(true);
         CONTROLS    :   WriteOut(false);
 (*        CONTROLP    : *)
-        CONTROLQ    :   WhereIs(backwardsearch, false);
+        CONTROLQ    :   WhereIs (backwardsearch, false);
 (*        CONTROLR    : Ler novo arquivo. *)
         CONTROLT    :   GoToLine;
 (*        CONTROLU    : Colar conteúdo do buffer. Vai demorar... *)
         CONTROLV    :   PageDown;
-        CONTROLW    :   WhereIs(forwardsearch, false);
+        CONTROLW    :   WhereIs (forwardsearch,  false);
         CONTROLY    :   PageUp;
         CONTROLZ    :   ExitToDOS;
         SELECT      :   begin
@@ -1392,12 +1455,13 @@ begin
                             case key of
                                 DELETE  : RemoveLine;
                                 TAB     : backtab;
-                                81, 113 : WhereIs(backwardsearch, true);
-                                87, 119 : WhereIs(forwardsearch, true);
-                                else    delay(100);
+                                68, 100 : Location  (HowMany);
+                                81, 113 : WhereIs   (backwardsearch, true);
+                                87, 119 : WhereIs   (forwardsearch , true);
+                                else    delay(10);
                             end;
                         end;
-        else    delay(100);
+        else    delay(10);
     end;
 end;
 
