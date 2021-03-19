@@ -1,3 +1,7 @@
+const
+_CALROM: array[0..6] of byte = ($FD,$21,$00,$00,$C3,$D4,$20);
+_CALSUB: array[0..6] of byte = ($FD,$21,$00,$00,$C3,$D4,$20);
+
 {This code contains procedures and a function (USING BIOS ROUTINES)
 
   - Procedure ReadVRAM 

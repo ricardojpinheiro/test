@@ -89,7 +89,6 @@ var
     tempnumber0:        string[6];
     temp:               linestring;
     i, j:               integer;
-    i, j:               integer;
     c:                  char;
 
     Registers:          TRegs;
@@ -676,9 +675,16 @@ end;
 procedure ins;
 begin
     if insertmode then
-        insertmode := false
+    begin
+        temp := 'Insert mode off';
+        insertmode := false;
+    end
     else
+    begin
+        temp := 'Insert mode on';
         insertmode := true;
+    end;
+    StatusLine(temp);
 end;
 
 procedure del;
@@ -1170,8 +1176,8 @@ begin
     
 (*  Remove espacos em branco no inicio e no fim do texto. *)    
         
-    i := DifferentPos(chr(32), temp) - 1; 
-    j := RDifferentPos(chr(32), temp) + 1;
+    i := DifferentPos   (chr(32), temp) - 1; 
+    j := RDifferentPos  (chr(32), temp) + 1;
 
     if i > 1 then
         delete(temp, 1, i)
@@ -1486,6 +1492,7 @@ begin
 
     filename := paramstr(1);
     InitTextEditor;
+    CheatAPPEND(filename);
     ReadFile(filename);
 
 (* main loop - get a key and process it *)
@@ -1501,5 +1508,6 @@ begin
             character(chr(key));
 
    until true = false;
+   CheatAPPEND(chr(32));
    ClearAllBlinks;
  end.
