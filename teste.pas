@@ -79,6 +79,10 @@ BEGIN
 
     i := -20;
     writeln ('i=',i, ' abs(i)=', abs(i));
+    i := $8000;
+    writeln (Hi(i) div $40);
+    writeln (Lo(i));
+    writeln (Hi(i) and $3F);
 {    
     for i := 1 to 20 do
         writeln(pressed_function_key);
