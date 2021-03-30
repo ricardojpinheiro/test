@@ -29,6 +29,7 @@ var i : integer;
     c : char;
     Regs: TRegs;
     ScreenStatus: TScreenStatus;
+    Vetor: array[1..15] of byte;
     
 function pressed_function_key:byte;
 var nummer:byte;
@@ -58,12 +59,17 @@ end;
 
 
 BEGIN
+    randomize;
+
     for i := 1 to 10 do
         SetFnKey(i, 'Fudeba');
 
     SetFnKeyStatus (true);
 
     readln;
+
+    SetFnKeyStatus (false);
+    
 {    
     regs.IX := ctINIFNK;
     CALSLT (regs);
@@ -79,10 +85,15 @@ BEGIN
 
     i := -20;
     writeln ('i=',i, ' abs(i)=', abs(i));
-    i := $8000;
-    writeln (Hi(i) div $40);
-    writeln (Lo(i));
-    writeln (Hi(i) and $3F);
+
+    for i := 1 to 15 do 
+        Vetor[i] := i;
+
+    Move(Vetor[4], Vetor[10], sizeof(Vetor[4]) * 5);
+    
+    for i := 1 to 15 do
+        writeln(i, ' ', Vetor[i]);
+
 {    
     for i := 1 to 20 do
         writeln(pressed_function_key);
@@ -105,7 +116,5 @@ BEGIN
         90, 122:    writeln('Z');
     end;
 }
-    SetFnKeyStatus (false);
-
 END.
 
