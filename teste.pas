@@ -25,8 +25,9 @@ program teste;
 
 {$i d:conio.inc}
 
-var i : integer;
+var i, j : integer;
     c : char;
+    epa: real;
     Regs: TRegs;
     ScreenStatus: TScreenStatus;
     Vetor: array[1..15] of byte;
@@ -83,6 +84,7 @@ BEGIN
     writeln('Foreground Color: ', ScreenStatus.nFgColor);
     writeln('Function keys: ', ScreenStatus.bFnKeyOn);
 
+    j := 0;
     i := -20;
     writeln ('i=',i, ' abs(i)=', abs(i));
 
@@ -94,6 +96,14 @@ BEGIN
     for i := 1 to 15 do
         writeln(i, ' ', Vetor[i]);
 
+{
+    for i := 1 to 64 do
+    begin
+        j := j + $0400;
+        epa := epa + $0400;
+        writeln(j, ' ', epa:5:0, ' ', round(int(epa)));
+    end;
+}
 {    
     for i := 1 to 20 do
         writeln(pressed_function_key);
