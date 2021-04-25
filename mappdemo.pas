@@ -76,6 +76,7 @@ begin
         PointerMapperVarTable^.aFreeSpace[2]);
 end;
 
+{
 Procedure MAPRALLC_and_MAPRRW;
 type
     str80 = string[80];
@@ -117,7 +118,7 @@ begin
     for i := 1 to 3 do
         writeln(' Text: ', StringTest[i]);
 
-{
+
         move(temp, StringTest[i], sizeof(temp));
         writeln('Text: ', StringTest[i]);
         writeln('Saving it in the Mapper segment ', SegmentAllocated[i], '...');
@@ -128,7 +129,6 @@ begin
             AllRight := WriteMapperSegment(Mapper, SegmentAllocated[i], j, ord(temp[j - addr(temp)]));
 
         writeln('Writing results: ', AllRight);
-    end;
     
         writeln('Releasing segment: ', FreeMapperSegment(Mapper, Mapper.nPriMapperSlot, SegmentId));
 
@@ -147,10 +147,9 @@ begin
         
         writeln('Text: ', StringTest[i]);
     end;
-}
 end;
+}
 
-{
 Procedure MAPRALLC_and_MAPRRW;
 begin
     writeln('MAPRALLC and MAPRRW:');
@@ -176,7 +175,7 @@ begin
         
     writeln('Text: ', StringTest);
 end; 
-}
+
 
 Procedure MAPRPAGE1;
 begin
