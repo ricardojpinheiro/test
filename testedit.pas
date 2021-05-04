@@ -7,7 +7,7 @@ Type    Pointer   = ^Byte;
 {$i d:wrtvram.inc}
 
 const
-    maxlines        = 1000;
+    maxlines        = 980;
     maxcols         = 128;
     startvram       = 5120;
     limitvram       = 65280;
@@ -18,6 +18,7 @@ type
         VRAMBank:       byte;
         VRAMposition:   integer;
     end;
+    
     str8            =   string[8];
 
 var
@@ -26,7 +27,8 @@ var
     filename:           string[12];
     txt:                text;
     counter:            real;
-    structure:          array [1..maxlines] of RStructure;
+    textlines:          array [1..maxlines] of RStructure;
+    emptylines:         array [1..maxlines] of boolean;
     Character:          char;
 
 function Readkey: char;
@@ -42,14 +44,14 @@ begin
      qqc := 0;
 end;
 
-Function WhereX:Byte;
+Function WhereX: Byte;
 Var
     CSRX:   Byte Absolute $f3dd;
 Begin
     WhereX := CSRX;
 End;
 
-Function WhereY:Byte;
+Function WhereY: Byte;
 Var
     CSRY:   Byte Absolute $f3dc;
 Begin
@@ -94,7 +96,7 @@ var
     VRAMAddress:    integer;
     
 begin
-    with structure[linenumber] do
+    with textlines[linenumber] do
     begin
         if linenumber = 1 then
         begin
@@ -103,8 +105,8 @@ begin
         end
         else
         begin
-            VRAMposition    :=  structure[linenumber - 1].VRAMposition + maxcols;
-            VRAMBank        :=  structure[linenumber - 1].VRAMBank;
+            VRAMposition    :=  textlines[linenumber - 1].VRAMposition + maxcols;
+            VRAMBank        :=  textlines[linenumber - 1].VRAMBank;
         end;
 
         if counter >= limitvram then
@@ -114,17 +116,18 @@ begin
             counter         := 0;
         end;
     end;
+    emptylines[linenumber] := true;
 end;
 
 procedure FromRAMToVRAM(var tempstr: linestring; linenumber: integer);
 begin
-    with structure[linenumber] do
+    with textlines[linenumber] do
         WriteVRAM(VRAMBank, VRAMposition, addr(tempstr), maxcols);
 end;
 
 procedure FromVRAMToRAM(var tempstr: linestring; linenumber: integer);
 begin
-    with structure[linenumber] do
+    with textlines[linenumber] do
         ReadVRAM(VRAMBank, VRAMposition, addr(tempstr), maxcols);
 end;
 
@@ -153,19 +156,22 @@ var
     i: integer;
 begin
     i := (LastLineBlock + 1) - FirstLineBlock;
-    Move(structure[FirstLineBlock], structure[FirstLineCopy],
-        sizeof(structure[FirstLineBlock]) * i);
+    Move(textlines[FirstLineBlock], textlines[FirstLineCopy],
+        sizeof(textlines[FirstLineBlock]) * i);
+    
+    for i := FirstLineBlock to FirstLineCopy do
+        emptylines[i] := false;
 end;
 
 procedure EraseBlock(FirstLineBlock, LastLineBlock, max: integer);
 var
     i: integer;
 begin
-    for i := FirstLineBlock to LastLineBlock do
-        fillchar(structure[i], sizeof(structure[i]), chr(32));
     i := max - FirstLineBlock;
-    Move(structure[LastLineBlock + 1], structure[FirstLineBlock],
-        sizeof(structure[FirstLineBlock]) * i);
+    Move(textlines[LastLineBlock + 1], textlines[FirstLineBlock],
+        sizeof(textlines[FirstLineBlock]) * i);
+    for i := (max - (LastLineBlock - FirstLineBlock)) to max do 
+        textlines[i].VRAMBank := 255;
 end;
 
 procedure MoveBlock(FirstLineBlock, LastLineBlock, FirstLineMove: integer; var max: integer);
@@ -178,14 +184,17 @@ procedure BlankBlock(FirstLineBlock: integer; var max: integer; TotalLines: inte
 var
     i: integer;
 begin
+    for i := FirstLineBlock to ((FirstLineBlock + TotalLines) - 1) do 
+    begin
+        textlines[i].VRAMBank       := textlines[max + TotalLines + (i - FirstLineBlock) + 1].VRAMBank;
+        textlines[i].VRAMPosition   := textlines[max + TotalLines + (i - FirstLineBlock) + 1].VRAMPosition;
+    end;
     max := max + TotalLines;
-    for i := FirstLineBlock to ((FirstLineBlock + TotalLines) - 1) do
-        structure[i].VRAMPosition := structure[max + (i - FirstLineBlock) + 1].VRAMPosition;
 end;
 
 procedure ReadFile;
 begin
-    writeln('Reading file... Which file? Well, you tell me the name: ');
+    write('Reading file... Which file? Well, you tell me the name: ');
     read(filename);
        
     assign (txt, filename);
@@ -195,16 +204,20 @@ begin
     j := WhereY + 1;
     while not eof(txt) do
     begin
-        fillchar(temp, sizeof(temp), chr(32));
-        readln(txt, temp);
         gotoxy(1, j);
         writeln ('Reading line ', i, ' and saving it into VRAM.');
+        fillchar(temp, sizeof(temp), chr(32));
+        readln(txt, temp);
         FromRAMToVRAM(temp, i);
+        emptylines[i] := false;
+{
+        gotoxy(1, WhereY + 1); writeln('i: ', i, ' - ', emptylines[i]);
+}
         i := i + 1;
     end;
+    max := i - 1;
     
     close(txt);
-    max := i - 1;
 end;
 
 procedure PrintText;
@@ -213,17 +226,80 @@ begin
     begin
         fillchar(temp, sizeof(temp), chr(32));
         FromVRAMToRAM(temp, i);
-        writeln(i, ' -> ', temp);
+        writeln(i, ' -> ', temp, ' ', textlines[i].VRAMBank, ' ' , textlines[i].VRAMposition);
     end;
 end;
 
 procedure SeeVariables;
 begin
     writeln('The file has ', max, ' lines.');
-    writeln(' First used VRAM bank: ' , structure[1].VRAMBank, 
-            ' First used VRAM address: ' , i2hex(structure[1].VRAMposition));
-    writeln(' Last used VRAM bank: ' , structure[max].VRAMBank, 
-            ' Last used VRAM address: ' , i2hex(structure[max].VRAMposition));
+    writeln(' First used VRAM bank: ' , textlines[1].VRAMBank, 
+            ' First used VRAM address: ' , i2hex(textlines[1].VRAMposition));
+    writeln(' Last used VRAM bank: ' , textlines[max].VRAMBank, 
+            ' Last used VRAM address: ' , i2hex(textlines[max].VRAMposition));
+end;
+
+function SearchForBlankBlock(BlankLines: integer): integer;
+var
+    i, k: integer;
+    LastPosition: boolean;
+begin
+    i := 0;
+    k := 0;
+    LastPosition := true;
+    while (i <= maxlines) and (k < BlankLines) do
+    begin
+        if emptylines[i] = true then
+            k := k + 1
+        else
+            k := 0;
+        i := i + 1;
+    end;
+    SearchForBlankBlock := i - BlankLines;
+    writeln('BlankLines: ', BlankLines, ' BeginBlock: ', i - BlankLines,
+            ' EndBlock: ', i);
+end;    
+
+procedure InsertLinesIntoText(CurrentLine: integer; var TotalLines: integer;
+                                BlankLines: integer); 
+var
+    i, NewBeginBlock: integer;
+    
+begin
+(*  Move o bloco de texto, até o fim, BlankLines para baixo. *)
+
+    i := (TotalLines + 1) - CurrentLine;
+    Move(textlines[CurrentLine], textlines[CurrentLine + BlankLines],
+        sizeof(textlines[BlankLines]) * i);
+
+(*  Bloqueia as linhas novas, de forma que na busca por trechos em
+*   branco, elas nãos sejam consideradas. *)
+
+    for i := (TotalLines + 1) to (TotalLines + BlankLines) do 
+        emptylines[i] := false;
+
+(*  Procura por blocos vazios do tamanho exato que precisamos, para 
+*   redirecionar o bloco de texto na VRAM. *)
+
+    NewBeginBlock := SearchForBlankBlock(BlankLines);
+
+    for i := (CurrentLine + 1) to (CurrentLine + BlankLines) do 
+    begin
+
+(*  Reposiciona, na tabela de alocações, o bloco de texto da VRAM. *)
+
+        textlines[i].VRAMBank       := textlines[NewBeginBlock + (i - CurrentLine) + 1].VRAMBank;
+        textlines[i].VRAMPosition   := textlines[NewBeginBlock + (i - CurrentLine) + 1].VRAMPosition;
+    end;
+
+(*  Novo máximo, acrescido de BlankLines. *)
+
+    TotalLines := TotalLines + BlankLines;
+
+(*  Marca no vetor emptylines, que essas linhas estão bloqueadas. *)
+    
+    for i := (CurrentLine + 1) to TotalLines do
+        emptylines[i] := false;
 end;
 
 procedure InsertBlankLinesIntoText (var max: integer);
@@ -235,8 +311,26 @@ begin
     readln(Line);
     write('And now tell me how many blank lines do you want to add: ');
     readln(BlankLines);
-    CopyBlock   (Line, max, Line + BlankLines);
-    BlankBlock  (Line, max, BlankLines);
+    InsertLinesIntoText (Line, max, BlankLines);
+end;
+
+procedure InsertText;
+var
+    i, FirstLine, EditLines: integer;
+begin
+    writeln('Now you can add some words to your text.');
+    write('Please tell me which line do you want to start: ');
+    readln(FirstLine);
+    write('And now tell me how many lines do you want to edit: ');
+    readln(EditLines);
+    for i := (FirstLine + 1) to (FirstLine + EditLines) do
+    begin
+        fillchar(temp, sizeof(temp), chr(32));
+        write('Line ', i,': ');
+        readln(temp);
+        FromRAMToVRAM (temp, i);
+        emptylines[i] := false;
+    end;
 end;
 
 procedure RemoveLinesFromText (var max: integer);
@@ -262,7 +356,7 @@ begin
     write('Now tell me the last line: ');
     readln(FinishLine);
     write('Finally, where I will copy this text block (from line ', StartLine, 
-            ' to ', FinishLine,').');
+            ' to ', FinishLine,'): ');
     readln(DestLine);
     
     CopyBlock(StartLine, FinishLine, DestLine);
@@ -279,7 +373,7 @@ begin
     write('Now tell me the last line: ');
     readln(FinishLine);
     write('Finally, where I will move this text block (from line ', StartLine, 
-            ' to ', FinishLine,').');
+            ' to ', FinishLine,'): ');
     readln(DestLine);
     
     MoveBlock(StartLine, FinishLine, DestLine, max);
@@ -300,34 +394,34 @@ begin
 end;
 
 Begin
-    initprocess;
-
-    repeat until keypressed;
-    
     while (Character  <> 'F') do
     begin
         clrscr;
         writeln(' VRAM text storage demo program:');
         writeln(' Choose your weapon: ');
-        writeln(' 0 - Read file, sending it to VRAM.');
-        writeln(' 1 - Retrieve text from VRAM, and print it in the screen.');
-        writeln(' 2 - See some variables regarding the file.');
-        writeln(' 3 - Insert some blank lines in the text.');
-        writeln(' 4 - Remove some lines from the text.');
-        writeln(' 5 - Copy a text block to another place in the text stream.');
-        writeln(' 6 - Move a text block to another place in the text stream.');
-        writeln(' 7 - Erase a text block in the text stream.');
+        writeln(' 0 - Init VRAM and all variables.');
+        writeln(' 1 - Read file, sending it to VRAM.');
+        writeln(' 2 - Retrieve text from VRAM, and print it in the screen.');
+        writeln(' 3 - See some variables regarding the file.');
+        writeln(' 4 - Insert some blank lines in the text.');
+        writeln(' 5 - Remove some lines from the text.');
+        writeln(' 6 - Copy a text block to another place in the text stream.');
+        writeln(' 7 - Move a text block to another place in the text stream.');
+        writeln(' 8 - Erase a text block in the text stream.');
+        writeln(' 9 - Insert words into the text stream.');
         writeln(' F - End.');
         Character := upcase(readkey);
         case Character of 
-            '0': ReadFile;
-            '1': PrintText;
-            '2': SeeVariables; 
-            '3': InsertBlankLinesIntoText(max);
-            '4': RemoveLinesFromText(max);
-            '5': CopyTextBlock(max);
-            '6': MoveTextBlock(max);
-            '7': RemoveTextBlock(max);          
+            '0': initprocess;
+            '1': ReadFile;
+            '2': PrintText;
+            '3': SeeVariables; 
+            '4': InsertBlankLinesIntoText(max);
+            '5': RemoveLinesFromText(max);
+            '6': CopyTextBlock(max);
+            '7': MoveTextBlock(max);
+            '8': RemoveTextBlock(max);
+            '9': InsertText;
             'F': exit;
         end;
         writeln('Done!');
