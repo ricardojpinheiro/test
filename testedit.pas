@@ -154,13 +154,13 @@ end;
 procedure CopyBlock(FirstLineBlock, LastLineBlock, FirstLineCopy: integer);
 var
     i: integer;
+
 begin
-    i := (LastLineBlock + 1) - FirstLineBlock;
-    Move(textlines[FirstLineBlock], textlines[FirstLineCopy],
-        sizeof(textlines[FirstLineBlock]) * i);
-    
-    for i := FirstLineBlock to FirstLineCopy do
-        emptylines[i] := false;
+    for i := FirstLineBlock to LastLineBlock do
+    begin
+        textlines   [FirstLineCopy + i - FirstLineBlock]    := textlines[i];
+        emptylines  [FirstLineCopy + i - FirstLineBlock]    := false;
+    end;
 end;
 
 procedure EraseBlock(FirstLineBlock, LastLineBlock, max: integer);
@@ -226,7 +226,8 @@ begin
     begin
         fillchar(temp, sizeof(temp), chr(32));
         FromVRAMToRAM(temp, i);
-        writeln(i, ' -> ', temp, ' ', textlines[i].VRAMBank, ' ' , textlines[i].VRAMposition);
+        writeln(i, ' -> ', temp, ' ', textlines[i].VRAMBank, ' ' , 
+                        textlines[i].VRAMposition, ' ', emptylines[i]);
     end;
 end;
 
@@ -249,11 +250,11 @@ begin
     LastPosition := true;
     while (i <= maxlines) and (k < BlankLines) do
     begin
+        i := i + 1;
         if emptylines[i] = true then
             k := k + 1
         else
             k := 0;
-        i := i + 1;
     end;
     SearchForBlankBlock := i - BlankLines;
     writeln('BlankLines: ', BlankLines, ' BeginBlock: ', i - BlankLines,
@@ -273,7 +274,7 @@ begin
         sizeof(textlines[BlankLines]) * i);
 
 (*  Bloqueia as linhas novas, de forma que na busca por trechos em
-*   branco, elas nãos sejam consideradas. *)
+*   branco, elas não sejam consideradas. *)
 
     for i := (TotalLines + 1) to (TotalLines + BlankLines) do 
         emptylines[i] := false;
@@ -300,6 +301,29 @@ begin
     
     for i := (CurrentLine + 1) to TotalLines do
         emptylines[i] := false;
+end;
+
+procedure DeleteLinesFromText(CurrentLine: integer; var TotalLines: integer;
+                                DeletedLines: integer); 
+var
+    i, NewBeginBlock: integer;
+    
+begin
+(*  Move o bloco de texto, até o fim, DeletedLines para cima. *)
+
+    i := (TotalLines + 1) - CurrentLine;
+    Move(textlines[CurrentLine + DeletedLines], textlines[CurrentLine],
+        sizeof(textlines[DeletedLines]) * i);
+
+(*  Libera as linhas novas no final, de forma que na busca por trechos em
+*   branco, elas sejam consideradas. *)
+
+    for i := (TotalLines - DeletedLines) to TotalLines do 
+        emptylines[i] := true;
+
+(*  Novo máximo, acrescido de BlankLines. *)
+
+    TotalLines := TotalLines - DeletedLines;
 end;
 
 procedure InsertBlankLinesIntoText (var max: integer);
@@ -335,15 +359,14 @@ end;
 
 procedure RemoveLinesFromText (var max: integer);
 var
-    Line, BlankLines: integer;
+    Line, DeletedLines: integer;
 begin
     writeln('Here you can remove some lines from the text.');
     write('Please tell me which line do you want to start: ');
     readln(Line);
     write('And now tell me how many lines do you want to remove: ');
-    readln(BlankLines);
-    EraseBlock(Line, Line + BlankLines, max);
-    max := max - (Line + BlankLines);
+    readln(DeletedLines);
+    DeleteLinesFromText(Line, max, DeletedLines);
 end;
 
 procedure CopyTextBlock (var max: integer);
@@ -355,28 +378,57 @@ begin
     readln(StartLine);
     write('Now tell me the last line: ');
     readln(FinishLine);
-    write('Finally, where I will copy this text block (from line ', StartLine, 
+    write('Then, where I will copy this text block (from line ', StartLine, 
             ' to ', FinishLine,'): ');
     readln(DestLine);
+    write('Finally, do you want to (i)nsert this text, or (o)verwrite it?');
+    Character := upcase(readkey);
+    writeln;
+    
+    if Character = 'I' then
+        InsertLinesIntoText (DestLine, max, FinishLine - StartLine);
     
     CopyBlock(StartLine, FinishLine, DestLine);
-    max := max + (FinishLine - StartLine);
+
+    if Character = 'I' then
+        max := max + (FinishLine - StartLine) + 1
+    else
+        max := max + ((FinishLine - StartLine) - (max - DestLine));
 end;
 
 procedure MoveTextBlock(var max: integer);
 var
-    StartLine, FinishLine, DestLine: integer;
+    i, StartLine, FinishLine, DestLine: integer;
 begin
-    writeln('Here you can move a block of text to another place of the text.');
+    i := 0;
+    writeln('Here you can move a text block to another place of the text.');
     write('Please tell me which line do you want to start: ');
     readln(StartLine);
     write('Now tell me the last line: ');
     readln(FinishLine);
-    write('Finally, where I will move this text block (from line ', StartLine, 
+    write('Then, where I will move this text block (from line ', StartLine, 
             ' to ', FinishLine,'): ');
     readln(DestLine);
+    write('Finally, do you want to (i)nsert this text, or (o)verwrite it?');
+    Character := upcase(readkey);
+    writeln;
     
-    MoveBlock(StartLine, FinishLine, DestLine, max);
+    if Character = 'I' then
+    begin
+        InsertLinesIntoText (DestLine, max, (FinishLine - StartLine) + 1);
+        i := 1;
+    end;
+        
+    CopyBlock(StartLine, FinishLine, DestLine);
+
+    if Character = 'I' then
+        max := max + (FinishLine - StartLine) + 1
+    else
+        max := max + ((FinishLine - StartLine) - (max - DestLine));
+
+    DeleteLinesFromText(StartLine, max, (FinishLine - StartLine) + 1);
+
+    max := max - (FinishLine - StartLine) - i;
 end;
 
 procedure RemoveTextBlock(var max: integer);
