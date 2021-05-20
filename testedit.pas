@@ -7,8 +7,8 @@ Type    Pointer   = ^Byte;
 {$i d:wrtvram.inc}
 
 const
-    maxlines        = 980;
-    maxcols         = 128;
+    maxlines        = 1568;
+    maxcols         = 80;
     startvram       = 5120;
     limitvram       = 65280;
 
@@ -163,6 +163,7 @@ begin
     end;
 end;
 
+(*
 procedure EraseBlock(FirstLineBlock, LastLineBlock, max: integer);
 var
     i: integer;
@@ -191,6 +192,7 @@ begin
     end;
     max := max + TotalLines;
 end;
+*) 
 
 procedure ReadFile;
 begin
@@ -235,9 +237,9 @@ procedure SeeVariables;
 begin
     writeln('The file has ', max, ' lines.');
     writeln(' First used VRAM bank: ' , textlines[1].VRAMBank, 
-            ' First used VRAM address: ' , i2hex(textlines[1].VRAMposition));
+    ' First used VRAM address: ' , i2hex(textlines[1].VRAMposition));
     writeln(' Last used VRAM bank: ' , textlines[max].VRAMBank, 
-            ' Last used VRAM address: ' , i2hex(textlines[max].VRAMposition));
+    ' Last used VRAM address: ' , i2hex(textlines[max].VRAMposition));
 end;
 
 function SearchForBlankBlock(BlankLines: integer): integer;
@@ -311,7 +313,7 @@ var
 begin
 (*  Move o bloco de texto, até o fim, DeletedLines para cima. *)
 
-    i := (TotalLines + 1) - CurrentLine;
+    i := TotalLines - CurrentLine;
     Move(textlines[CurrentLine + DeletedLines], textlines[CurrentLine],
         sizeof(textlines[DeletedLines]) * i);
 
@@ -338,25 +340,6 @@ begin
     InsertLinesIntoText (Line, max, BlankLines);
 end;
 
-procedure InsertText;
-var
-    i, FirstLine, EditLines: integer;
-begin
-    writeln('Now you can add some words to your text.');
-    write('Please tell me which line do you want to start: ');
-    readln(FirstLine);
-    write('And now tell me how many lines do you want to edit: ');
-    readln(EditLines);
-    for i := (FirstLine + 1) to (FirstLine + EditLines) do
-    begin
-        fillchar(temp, sizeof(temp), chr(32));
-        write('Line ', i,': ');
-        readln(temp);
-        FromRAMToVRAM (temp, i);
-        emptylines[i] := false;
-    end;
-end;
-
 procedure RemoveLinesFromText (var max: integer);
 var
     Line, DeletedLines: integer;
@@ -381,19 +364,10 @@ begin
     write('Then, where I will copy this text block (from line ', StartLine, 
             ' to ', FinishLine,'): ');
     readln(DestLine);
-    write('Finally, do you want to (i)nsert this text, or (o)verwrite it?');
-    Character := upcase(readkey);
     writeln;
     
-    if Character = 'I' then
-        InsertLinesIntoText (DestLine, max, FinishLine - StartLine);
-    
+    InsertLinesIntoText (DestLine - 1, max, (FinishLine - StartLine) + 1);
     CopyBlock(StartLine, FinishLine, DestLine);
-
-    if Character = 'I' then
-        max := max + (FinishLine - StartLine) + 1
-    else
-        max := max + ((FinishLine - StartLine) - (max - DestLine));
 end;
 
 procedure MoveTextBlock(var max: integer);
@@ -409,40 +383,42 @@ begin
     write('Then, where I will move this text block (from line ', StartLine, 
             ' to ', FinishLine,'): ');
     readln(DestLine);
-    write('Finally, do you want to (i)nsert this text, or (o)verwrite it?');
-    Character := upcase(readkey);
     writeln;
-    
-    if Character = 'I' then
-    begin
-        InsertLinesIntoText (DestLine, max, (FinishLine - StartLine) + 1);
-        i := 1;
-    end;
-        
+
+    InsertLinesIntoText (DestLine - 1, max, (FinishLine - StartLine) + 1);
     CopyBlock(StartLine, FinishLine, DestLine);
-
-    if Character = 'I' then
-        max := max + (FinishLine - StartLine) + 1
-    else
-        max := max + ((FinishLine - StartLine) - (max - DestLine));
-
     DeleteLinesFromText(StartLine, max, (FinishLine - StartLine) + 1);
-
-    max := max - (FinishLine - StartLine) - i;
 end;
 
 procedure RemoveTextBlock(var max: integer);
 var
-    Line, BlankLines: integer;
+    Line, DeletedLines: integer;
 begin
     writeln('Now you can remove some lines into the text.');
     write('Please tell me which line do you want to start: ');
     readln(Line);
-    write('And now tell me how many blank lines do you want to add: ');
-    readln(BlankLines);
+    write('And now tell me how many blank lines do you want to remove: ');
+    readln(DeletedLines);
+    DeleteLinesFromText(Line, max, DeletedLines);
+end;
 
-    EraseBlock(Line, Line + BlankLines, max);
-    max := max - BlankLines;
+procedure InsertText;
+var
+    i, FirstLine, EditLines: integer;
+begin
+    writeln('Now you can add some words to your text.');
+    write('Please tell me which line do you want to start: ');
+    readln(FirstLine);
+    write('And now tell me how many lines do you want to edit: ');
+    readln(EditLines);
+    for i := FirstLine to (FirstLine + EditLines - 1) do
+    begin
+        fillchar(temp, sizeof(temp), chr(32));
+        write('Line ', i,': ');
+        readln(temp);
+        FromRAMToVRAM (temp, i);
+        emptylines[i] := false;
+    end;
 end;
 
 Begin
