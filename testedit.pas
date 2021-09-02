@@ -22,7 +22,7 @@ type
     str8            =   string[8];
 
 var
-    i, j, k, l, m, max: integer;
+    max:                integer;
     temp:               linestring;
     filename:           string[12];
     txt:                text;
@@ -30,7 +30,7 @@ var
     textlines:          array [1..maxlines] of RStructure;
     emptylines:         array [1..maxlines] of boolean;
     Character:          char;
-
+    
 function Readkey: char;
 var
     bt: integer;
@@ -92,9 +92,6 @@ begin
 end; { I2Hex }
 
 procedure InitVRAM(linenumber: integer; var counter: real);
-var
-    VRAMAddress:    integer;
-    
 begin
     with textlines[linenumber] do
     begin
@@ -133,6 +130,7 @@ end;
 
 procedure initprocess;
 var
+    i:          integer;
     counter:    real;
 begin
     clrscr;
@@ -195,6 +193,9 @@ end;
 *) 
 
 procedure ReadFile;
+var
+    i, j: integer;
+    
 begin
     write('Reading file... Which file? Well, you tell me the name: ');
     read(filename);
@@ -223,6 +224,8 @@ begin
 end;
 
 procedure PrintText;
+var
+    i: integer;
 begin
     for i := 1 to max do
     begin
@@ -261,10 +264,11 @@ begin
     SearchForBlankBlock := i - BlankLines;
     writeln('BlankLines: ', BlankLines, ' BeginBlock: ', i - BlankLines,
             ' EndBlock: ', i);
-end;    
+end;
 
-procedure InsertLinesIntoText(CurrentLine: integer; var TotalLines: integer;
-                                BlankLines: integer); 
+procedure InsertLinesIntoText(CurrentLine   : integer;
+                            var TotalLines  : integer;
+                                BlankLines  : integer);
 var
     i, NewBeginBlock: integer;
     
@@ -291,8 +295,10 @@ begin
 
 (*  Reposiciona, na tabela de alocações, o bloco de texto da VRAM. *)
 
-        textlines[i].VRAMBank       := textlines[NewBeginBlock + (i - CurrentLine) + 1].VRAMBank;
-        textlines[i].VRAMPosition   := textlines[NewBeginBlock + (i - CurrentLine) + 1].VRAMPosition;
+        textlines[i].VRAMBank       := textlines[NewBeginBlock + 
+                                        (i - CurrentLine) + 1].VRAMBank;
+        textlines[i].VRAMPosition   := textlines[NewBeginBlock + 
+                                    (i - CurrentLine) + 1].VRAMPosition;
     end;
 
 (*  Novo máximo, acrescido de BlankLines. *)
@@ -411,7 +417,7 @@ begin
     readln(FirstLine);
     write('And now tell me how many lines do you want to edit: ');
     readln(EditLines);
-    for i := FirstLine to (FirstLine + EditLines - 1) do
+    for i := (FirstLine + 1) to (FirstLine + EditLines) do
     begin
         fillchar(temp, sizeof(temp), chr(32));
         write('Line ', i,': ');

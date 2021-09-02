@@ -81,7 +81,7 @@ end;
 BEGIN
   Randomize;
   stTemp := 'AbCdEfGhIj';
-  for i := 1 to 10 do
+  for i := 1 to 3 do
   begin
     Position := round(int(random(Limit)));
     writeln('Randomizing position: ', Position);
