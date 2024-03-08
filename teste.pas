@@ -23,9 +23,16 @@
 
 program teste;
 
-{$i d:conio.inc}
+{$i d:types.pas}
+{$i d:msxbios.pas}
+{$i d:conio.pas}
 
-var i, j : integer;
+type
+    TBinNumber  = array [0..7] of byte;
+
+var 
+    Binario: TBinNumber;
+    i, j : integer;
     c : char;
     epa: real;
     Regs: TRegs;
@@ -59,7 +66,60 @@ begin
 end;
 
 
+    function Power (x, y: integer): integer;
+    var
+        i, j: byte;
+    begin
+        j := 1;
+        for i := 1 to y do
+            j := j * x;
+        Power := j;
+    end;
+
+    function Binary2Decimal(Binary: TBinNumber):integer;
+    var
+        i: byte;
+        x: integer;
+    begin
+        i := 0;
+        x := 0;
+        for i := 7 downto 0 do
+            x := x + Binary[i] * Power(2, i);
+        Binary2Decimal := x;
+    end;
+    
+    procedure Decimal2Binary(x: integer; var Binary: TBinNumber);
+    var
+        i: byte;
+    begin
+        i := 0;
+        FillChar(Binary, sizeof(Binary), 0);
+        repeat
+            if (x mod 2 = 0) then
+                Binary[i] := 0
+            else
+                Binary[i] := 1;
+            x := x div 2;
+            i := i + 1;
+        until x = 0;
+    end;    
+
 BEGIN
+    
+    j := 208;
+    
+    writeln (j);
+    
+    Decimal2Binary (j, Binario);
+    
+    for i := 7 downto 0 do
+        write(Binario[i]);
+    
+    writeln;
+    
+    writeln (Binary2Decimal (Binario));
+
+{   
     randomize;
 
     for i := 1 to 10 do
@@ -71,10 +131,10 @@ BEGIN
 
     SetFnKeyStatus (false);
     
-{    
+    
     regs.IX := ctINIFNK;
     CALSLT (regs);
-}    
+    
     writeln('MSX version: ', msx_version);
 
     GetScreenStatus(ScreenStatus);
@@ -103,8 +163,8 @@ BEGIN
         epa := epa + $0400;
         writeln(j, ' ', epa:5:0, ' ', round(int(epa)));
     end;
-}
-{    
+
+    
     for i := 1 to 20 do
         writeln(pressed_function_key);
        

@@ -227,6 +227,6 @@ end;
 
 close(arq);
 
-	writeln('Fechou');
+    writeln('Fechou');
 END.
 

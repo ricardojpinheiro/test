@@ -33,12 +33,12 @@ Type TWord          = Integer;                 { 16Bit Unsigned - reserved }
      TChar          = Char;                    { Character (1 byte) }
      TInt24         = Array[0..2] Of Byte;     { 24Bit integer }
      TInt32         = Array[0..3] Of Byte;     { 32Bit integer }
-     TTinyString    = String[40];                  { String 40 byte size }
+     TTinyString    = String[40];              { String 40 byte size }
      PTinyString    = ^TTinyString;            { TTinyString pointer }
      TShortString   = String[80];              { String 80 byte size }
      PShortString   = ^TShortString;           { TShortString pointer }
      TString        = String[255];             { String 255 byte size }
-     PString    = ^TString;                { TString pointer }
+     PString        = ^TString;                { TString pointer }
      TFileName      = String[ctMaxPath];       { File name path type }
      PFileName      = ^TFileName;              { TFileName pointer }
      TDirectoryName = String[ctMaxDirName];    { Directory Name type }
@@ -87,4 +87,3 @@ Type TRegs = Record
     0 : ( C,B,E,D,L,H,F,A  : Byte );      { 8bit registers  }
     1 : ( BC,DE,HL,AF      : Integer );   { 16bit registers }
 End;
-

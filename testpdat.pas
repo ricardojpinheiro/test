@@ -93,6 +93,6 @@ BEGIN
     end;
     
     fechou := FileClose(arq);
-	writeln('Fechou');
-	
+    writeln('Fechou');
+    
 END.

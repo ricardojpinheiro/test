@@ -81,15 +81,15 @@ begin
         L := (((-1 * (maxint)) + L) * -1) + 1;
     for N := 1 to sizeof(S) - 1 do
     begin
-        R := IntegerModulo(L, D); { remainder }
+        R := IntegerModulo(L, D);   { remainder }
         L := IntegerDivision(L, D); { for next dividing/digit }
         if R <= 9 then
-            S := chr (R + 48) + S { 0.. 9 -> '0'..'9' (#48.. #57) }
+            S := chr (R + 48) + S   { 0.. 9 -> '0'..'9' (#48.. #57) }
         else
-            S := chr (R + 87) + S; { 10..15 -> 'a'..'f' (#97..#102) }
+            S := chr (R + 87) + S;  { 10..15 -> 'a'..'f' (#97..#102) }
     end;
-    I2Hex := S; { the output in exactly 8 digits }
-end; { I2Hex }
+    I2Hex := S;                     { the output in exactly 8 digits }
+end;                                { I2Hex }
 
 procedure InitVRAM(linenumber: integer; var counter: real);
 begin
@@ -142,6 +142,7 @@ begin
         InitVRAM(i, counter); 
         counter := counter + maxcols;
     end;
+    
     fillvram(0, $1400,  0, $EC00);
     fillvram(1, 0,      0, $FFFF);
 
@@ -201,10 +202,13 @@ begin
     read(filename);
        
     assign (txt, filename);
+    {$i-}
     reset(txt);
+    {$i+}
 
     i := 1;
     j := WhereY + 1;
+    
     while not eof(txt) do
     begin
         gotoxy(1, j);
@@ -213,9 +217,6 @@ begin
         readln(txt, temp);
         FromRAMToVRAM(temp, i);
         emptylines[i] := false;
-{
-        gotoxy(1, WhereY + 1); writeln('i: ', i, ' - ', emptylines[i]);
-}
         i := i + 1;
     end;
     max := i - 1;
@@ -223,17 +224,30 @@ begin
     close(txt);
 end;
 
-procedure PrintText;
+procedure PrintText (a, b: integer);
 var
     i: integer;
 begin
-    for i := 1 to max do
+    for i := a to b do
     begin
         fillchar(temp, sizeof(temp), chr(32));
         FromVRAMToRAM(temp, i);
         writeln(i, ' -> ', temp, ' ', textlines[i].VRAMBank, ' ' , 
                         textlines[i].VRAMposition, ' ', emptylines[i]);
     end;
+end;
+
+procedure EchoText;
+var
+    a, b: integer;
+    
+begin
+    write('Please tell me the first line that you want to print: ');
+    readln(a);
+    write('And now please tell me the last line: ');
+    readln(b);
+    writeln('Here we go!');
+    PrintText(a, b);
 end;
 
 procedure SeeVariables;
@@ -448,7 +462,7 @@ Begin
         case Character of 
             '0': initprocess;
             '1': ReadFile;
-            '2': PrintText;
+            '2': EchoText;
             '3': SeeVariables; 
             '4': InsertBlankLinesIntoText(max);
             '5': RemoveLinesFromText(max);

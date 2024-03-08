@@ -28,20 +28,20 @@ program testdos2;
 
 Const
     ctOpenFileHandle                = $43;
-	ctCreateFileHandle              = $44;
-	ctCloseFileHandle               = $45;
-	ctEnsureFileHandle              = $46;
+    ctCreateFileHandle              = $44;
+    ctCloseFileHandle               = $45;
+    ctEnsureFileHandle              = $46;
     ctDuplicateFileHandle           = $47;
     ctReadFromFileHandle            = $48;
-	ctWriteToFileHandle             = $49;
+    ctWriteToFileHandle             = $49;
     ctMoveFileHandlePointer         = $4A;
-	ctMoveFileHandle                = $54;
+    ctMoveFileHandle                = $54;
     ctChangeCurrentDir              = $5A;
     ctGetPreviousErrorCode          = $65;
     ctExplainErrorCode              = $66;
-	ctGetEnvironmentItem            = $6B;
-	ctSetEnvironmentItem            = $6C;
-	ctGetMSXDOSVersionNumber        = $6F;
+    ctGetEnvironmentItem            = $6B;
+    ctSetEnvironmentItem            = $6C;
+    ctGetMSXDOSVersionNumber        = $6F;
     
 Type TMSXDOSVersion = Record
   nKernelMajor,

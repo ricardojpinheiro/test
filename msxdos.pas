@@ -122,4 +122,3 @@ Begin
   regs.IY := nIY;
   regs.IX := nIX;
 End;
-

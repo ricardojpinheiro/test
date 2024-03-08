@@ -36,8 +36,8 @@ var i : integer;
     Allright: boolean;
 
 BEGIN
-	writeln('Mapper Support: ', MapperSupport(MapperCount));
-	writeln('How many Memory Mappers does this MSX have: ', MapperCount);
+    writeln('Mapper Support: ', MapperSupport(MapperCount));
+    writeln('How many Memory Mappers does this MSX have: ', MapperCount);
     writeln('Memory Mapper slotid: ', MapperTablePtr^.SlotId);
     writeln('Total Memory Mapper pages: ', MapperTablePtr^.PagesTotal, ' (', MapperTablePtr^.PagesTotal * 16, ' Kb).');
     writeln('Free Memory Mapper pages: ', MapperTablePtr^.PagesFree, ' (', MapperTablePtr^.PagesFree * 16, ' Kb).');

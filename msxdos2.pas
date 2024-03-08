@@ -108,4 +108,3 @@ Begin
       nSystemMinor := regs.E;
     End;
 End;
-
