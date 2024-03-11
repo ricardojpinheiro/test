@@ -1,37 +1,4 @@
 (*<dos.inc> CopyLeft (c) since 1995 by PopolonY2k. *)
-
-(* BDOS/MSXDOS functions list - Official function names *)
-
-Const
-    	ctOpen                 	        = $0F;
-	ctClose                	        = $10;
-	ctDelete               	        = $13;
-	ctCreate               	        = $16;
-    	ctRename               	        = $17;
-	ctFileSize                      = $23;    
-    	ctOpenFileHandle                = $43;
-	ctCreateFileHandle              = $44;
-	ctCloseFileHandle               = $45;
-	ctEnsureFileHandle              = $46;
-    	ctDuplicateFileHandle           = $47;
-    	ctReadFromFileHandle            = $48;
-	ctWriteToFileHandle             = $49;
-    	ctMoveFileHandlePointer         = $4A;
-	ctMoveFileHandle                = $54;
-    	ctGetPreviousErrorCode          = $65;
-    	ctExplainErrorCode              = $66;
-	ctGetEnvironmentItem            = $6B;
-	ctSetEnvironmentItem            = $6C;
-	ctGetMSXDOSVersionNumber        = $6F;
-
-Type
-	TMSXDOSVersion = Record
-  		nKernelMajor,
-  		nKernelMinor,
-  		nSystemMajor,
-  		nSystemMinor    : Byte;
-	End;
-
 Procedure MSXBDOS( Var regs : TRegs );
 Var
         nA, nF         : Byte;
@@ -86,8 +53,6 @@ Begin
 End;
 
 Procedure GetMSXDOSVersion( Var version : TMSXDOSVersion );
-Var
-       regs  : TRegs;
 Begin
   FillChar( regs, SizeOf( regs ), 0 );
   regs.C:= ctGetMSXDOSVersionNumber;

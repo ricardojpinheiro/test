@@ -1,0 +1,8 @@
+	function readstring - melhorar - voltar com a seta para esquerda, 
+backspace apagar voltando e del pra apagar no ponto onde esta.
+
+-> /Z<numero de linhas> - Limita o tamanho do arquivo a esse numero de linhas,
+
+	/Y - Le o arquivo primeiro, 
+		conta quantas linhas ele tem 
+			e trabalha com esse tamanho.

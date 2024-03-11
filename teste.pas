@@ -29,8 +29,26 @@ program teste;
 
 type
     TBinNumber  = array [0..7] of byte;
+    TDeviceType = (Drive, Device, Floppy, RAMDisk);
+    TPartitionType = (primary, extended, logical);
+    
+    Partition = record
+		PartitionNumber: byte;
+		PartitionType: TPartitionType;	
+		DriveAssignedToPartition: byte;
+		PartitionSize: real;
+		PartitionSectors: real;
+    end;
+
+    DevicesOnMSX = record
+		DeviceNumber: byte;
+		DeviceType: TDeviceType;
+		DriverSlot, DriverSegment, LUN: byte;
+		Partitions: array [1..32] of Partition;
+	end;
 
 var 
+	Devices: array [1..5] of DevicesOnMSX;
     Binario: TBinNumber;
     i, j : integer;
     c : char;
@@ -109,7 +127,7 @@ BEGIN
     j := 208;
     
     writeln (j);
-    
+        
     Decimal2Binary (j, Binario);
     
     for i := 7 downto 0 do
@@ -118,6 +136,16 @@ BEGIN
     writeln;
     
     writeln (Binary2Decimal (Binario));
+
+	writeln (24 shl 2);
+	writeln (24 shr 2);
+
+	Devices[1].DeviceNumber := 1;
+	Devices[2].DeviceType := Device;
+	Devices[2].Partitions[1].PartitionNumber := 1;
+	Devices[3].Partitions[2].PartitionType := primary;
+	Devices[4].Partitions[3].PartitionSize := 40960;
+	Devices[5].Partitions[4].PartitionSectors := 83924;
 
 {   
     randomize;

@@ -45,10 +45,10 @@ Function  MakeWindow(Col,Row,Width,Height:Byte;Header:String80):Pointer;
         End;
 
 (*      FillChar(St,81,Horizontal); {Fill with horizontal line } *)
-	FillChar(St, 81, ' ');
+    FillChar(St, 81, ' ');
       a := (Width - Length(Header)) Div 2;
       For b := 1 To Length(Header) Do 
-      	St[a+b] := Header[b];
+        St[a+b] := Header[b];
       St[1] := ULC;
       St[Width] := URC;
       Vram := (Row-1)*80 + Col;
@@ -354,7 +354,7 @@ Procedure WritelnWindow(WindowPtr:Pointer;St:String255);
 
 Procedure WriteWindow(WindowPtr:Pointer;St:String255);
     Begin
-	_WriteWindowOperation(WindowPtr,St,False);
+    _WriteWindowOperation(WindowPtr,St,False);
     End;
 
 Procedure GotoWindowXY(WindowPtr:Pointer;Col,Row:Byte);

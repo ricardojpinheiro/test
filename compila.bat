@@ -1,3 +1,3 @@
 d:
-c:\tp3\tp33f.com fudeba2.pas /rfudeba2.err 
-d:fudeba2.com
+c:\tp33f\tp33f.com teste.pas /rteste.err 
+d:teste.com

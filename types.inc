@@ -1,10 +1,10 @@
 (*<types.pas> * CopyLeft (c) since 1995 by PopolonY2k. *)
 Const ctMaxPath = 127;    { Maximum path size - MSXDOS2 }
 Type
-	TFileName	= String[ctMaxPath];       { File name path type }
-	Pointer	= ^Byte;                   { Pointer generic type }
-	TString	= String[255];
-	TSlotNumber = byte;
+    TFileName   = String[ctMaxPath];       { File name path type }
+    Pointer = ^Byte;                   { Pointer generic type }
+    TString = String[255];
+    TSlotNumber = byte;
 
 (* Z80 registers struct/union definition *)
 Type TRegs = Record

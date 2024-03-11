@@ -3,9 +3,9 @@
 (* BDOS/MSXDOS functions list - Official function names *)
 
 Const
-	ctClose                = $10;   { close file                      }
-	ctCreate               = $16;   { create file                     }
-	ctDelete               = $13;   { delete file                     }        
+    ctClose                = $10;   { close file                      }
+    ctCreate               = $16;   { create file                     }
+    ctDelete               = $13;   { delete file                     }        
         ctOpen                 = $F;    { open file                       }
         ctRename               = $17;   { rename file                     }
 
